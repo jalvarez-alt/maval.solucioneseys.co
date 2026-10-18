@@ -1,0 +1,25 @@
+# Configuración y credenciales (generadas por el instalador / de producción)
+app/config.php
+app/config.remote.php.bak
+*.bak
+
+# Logs
+error_log
+*.log
+
+# Archivos de servidor / hosting
+.user.ini
+.well-known/
+cgi-bin/
+
+# Archivos subidos por usuarios (se conserva la protección del directorio)
+uploads/*
+!uploads/.htaccess
+!uploads/index.html
+
+# Empaquetados y respaldos
+*.zip
+*.old
+
+# Editor
+.vscode/
