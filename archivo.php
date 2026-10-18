@@ -8,14 +8,17 @@ if (!$a) { http_response_code(404); exit('Archivo no encontrado'); }
 
 $ok = false;
 $u = user();
-if (is_admin()) {
-    $ok = true;
-} elseif ($a['entidad'] === 'ticket') {
+if ($a['entidad'] === 'ticket') {
     $t = one('SELECT solicitante_id, empresa_id FROM tickets WHERE id = ?', [$a['entidad_id']]);
-    if ($t) {
-        $ok = ($u['rol'] === 'empresa' && $u['empresa_id'] && (int)$t['empresa_id'] === (int)$u['empresa_id'])
-            || (int)$t['solicitante_id'] === (int)$u['id'];
-    }
+    $ok = $t && can('tickets', 'ver') && (alcance() === 'todos'
+        || (alcance() === 'empresa' && (int)$t['empresa_id'] === (int)$u['empresa_id'])
+        || (int)$t['solicitante_id'] === (int)$u['id']);
+} elseif ($a['entidad'] === 'gasto') {
+    $ok = can('gastos', 'ver');
+} elseif ($a['entidad'] === 'factura') {
+    $ok = can('cartera', 'ver');
+} else {
+    $ok = is_admin();
 }
 if (!$ok) { http_response_code(403); exit('Sin acceso'); }
 

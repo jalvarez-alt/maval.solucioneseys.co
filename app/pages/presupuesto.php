@@ -1,5 +1,5 @@
 <?php
-require_role('admin');
+require_perm('estadisticas', 'editar');
 $anio = (int)get('anio', date('Y'));
 $title = 'Presupuesto ' . $anio;
 $cats = all('SELECT id, nombre, activo FROM gasto_categorias ORDER BY activo DESC, nombre');

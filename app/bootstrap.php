@@ -7,7 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.2.0');
+define('APP_VERSION', '1.3.0');
+define('DB_VERSION', 3);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -110,22 +111,73 @@ function migrar(): void
     global $CONFIG;
     $sqlite = ($CONFIG['db']['driver'] ?? 'mysql') === 'sqlite';
     try { $v = (int)val("SELECT valor FROM app_meta WHERE clave = 'db_version'"); } catch (Throwable $e) { $v = 1; }
-    if ($v >= 2) return;
+    if ($v >= DB_VERSION) return;
     $run = function (string $sql, bool $tolerar = false) use ($sqlite) {
         try { db()->exec($sqlite ? sql_sqlite($sql) : $sql); } catch (Throwable $e) { if (!$tolerar) throw $e; }
     };
     $eng = ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
-    $run('CREATE TABLE IF NOT EXISTS app_meta (clave VARCHAR(40) NOT NULL PRIMARY KEY, valor VARCHAR(255) NULL)' . $eng);
-    foreach (['cargo VARCHAR(100) NULL', 'correos VARCHAR(500) NULL', 'procesador VARCHAR(120) NULL', 'ram VARCHAR(40) NULL', 'disco VARCHAR(80) NULL', 'renovacion VARCHAR(10) NULL'] as $col) {
-        $run('ALTER TABLE equipos ADD COLUMN ' . $col, true); // ya existe: se ignora
+    if ($v < 2) {
+        $run('CREATE TABLE IF NOT EXISTS app_meta (clave VARCHAR(40) NOT NULL PRIMARY KEY, valor VARCHAR(255) NULL)' . $eng);
+        foreach (['cargo VARCHAR(100) NULL', 'correos VARCHAR(500) NULL', 'procesador VARCHAR(120) NULL', 'ram VARCHAR(40) NULL', 'disco VARCHAR(80) NULL', 'renovacion VARCHAR(10) NULL'] as $col) {
+            $run('ALTER TABLE equipos ADD COLUMN ' . $col, true); // ya existe: se ignora
+        }
+        $run('CREATE TABLE IF NOT EXISTS equipo_software (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, equipo_id INT UNSIGNED NOT NULL, categoria VARCHAR(12) NOT NULL,
+            nombre VARCHAR(150) NOT NULL, version VARCHAR(60) NULL, tipo_licencia VARCHAR(40) NULL, licencia VARCHAR(10) NOT NULL DEFAULT \'Legal\',
+            vence DATE NULL, FOREIGN KEY (equipo_id) REFERENCES equipos(id) ON DELETE CASCADE)' . $eng);
+        $run("UPDATE equipos SET tipo = 'Escritorio' WHERE tipo = 'Computador de escritorio'");
     }
-    $run('CREATE TABLE IF NOT EXISTS equipo_software (
-        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, equipo_id INT UNSIGNED NOT NULL, categoria VARCHAR(12) NOT NULL,
-        nombre VARCHAR(150) NOT NULL, version VARCHAR(60) NULL, tipo_licencia VARCHAR(40) NULL, licencia VARCHAR(10) NOT NULL DEFAULT \'Legal\',
-        vence DATE NULL, FOREIGN KEY (equipo_id) REFERENCES equipos(id) ON DELETE CASCADE)' . $eng);
-    $run("UPDATE equipos SET tipo = 'Escritorio' WHERE tipo = 'Computador de escritorio'");
+    if ($v < 3) migrar_v3($run, $eng);
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
-    $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '2')");
+    $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
+}
+
+/** v3: roles y permisos, ajustes y registro de correo, planeador de mantenimiento y datos de aires acondicionados. */
+function migrar_v3(callable $run, string $eng): void
+{
+    // Aires acondicionados (campos propios en equipos)
+    foreach (['btu INT NULL', 'tipo_aire VARCHAR(30) NULL', 'tecnologia VARCHAR(12) NULL', 'refrigerante VARCHAR(12) NULL', 'voltaje VARCHAR(20) NULL', 'serial_exterior VARCHAR(120) NULL'] as $col) {
+        $run('ALTER TABLE equipos ADD COLUMN ' . $col, true);
+    }
+    // Roles y permisos
+    $run('CREATE TABLE IF NOT EXISTS roles (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, codigo VARCHAR(10) NULL, nombre VARCHAR(60) NOT NULL, descripcion VARCHAR(255) NULL,
+        alcance VARCHAR(10) NOT NULL DEFAULT \'propios\', sistema TINYINT NOT NULL DEFAULT 0, creado DATETIME NULL, UNIQUE KEY uq_roles_nombre (nombre))' . $eng);
+    $run('CREATE TABLE IF NOT EXISTS rol_permisos (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, rol_id INT UNSIGNED NOT NULL, modulo VARCHAR(30) NOT NULL, accion VARCHAR(15) NOT NULL,
+        UNIQUE KEY uq_rol_permiso (rol_id, modulo, accion), FOREIGN KEY (rol_id) REFERENCES roles(id) ON DELETE CASCADE)' . $eng);
+    $run('ALTER TABLE usuarios ADD COLUMN rol_id INT UNSIGNED NULL', true);
+    if (!(int)val('SELECT COUNT(*) FROM roles')) {
+        $base = [
+            'admin'   => ['Administrador', 'Acceso total a la aplicación.', 'todos'],
+            'usuario' => ['Usuario', 'Crea y sigue sus propios tickets y consulta los equipos que tiene asignados.', 'propios'],
+            'empresa' => ['Empresa', 'Ve y crea tickets de toda su empresa y consulta el inventario y los mantenimientos de su empresa.', 'empresa'],
+        ];
+        foreach ($base as $cod => [$nom, $desc, $alc]) {
+            $rid = insert('roles', ['codigo' => $cod, 'nombre' => $nom, 'descripcion' => $desc, 'alcance' => $alc, 'sistema' => 1, 'creado' => now()]);
+            if ($cod !== 'admin') {
+                foreach ([['tickets', 'ver'], ['tickets', 'crear'], ['computo', 'ver'], ['inventario', 'ver'], ['mantenimiento', 'ver']] as [$m, $a]) {
+                    insert('rol_permisos', ['rol_id' => $rid, 'modulo' => $m, 'accion' => $a]);
+                }
+            }
+            $run("UPDATE usuarios SET rol_id = $rid WHERE rol = '$cod'");
+        }
+    }
+    $run("UPDATE usuarios SET rol_id = (SELECT id FROM roles WHERE codigo = 'usuario') WHERE rol_id IS NULL");
+    // Ajustes (correo, notificaciones) y registro de envíos
+    $run('CREATE TABLE IF NOT EXISTS ajustes (clave VARCHAR(40) NOT NULL PRIMARY KEY, valor TEXT NULL)' . $eng);
+    $run('CREATE TABLE IF NOT EXISTS correo_log (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, fecha DATETIME NOT NULL, destinatarios VARCHAR(500) NOT NULL, asunto VARCHAR(255) NOT NULL,
+        ok TINYINT NOT NULL DEFAULT 0, error VARCHAR(500) NULL, motivo VARCHAR(30) NULL)' . $eng);
+    // Planeador de mantenimiento
+    $run('CREATE TABLE IF NOT EXISTS mantenimientos (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, equipo_id INT UNSIGNED NOT NULL, fecha_programada DATE NOT NULL,
+        estado VARCHAR(12) NOT NULL DEFAULT \'Programado\', periodicidad_meses SMALLINT NOT NULL DEFAULT 0, aviso_dias SMALLINT NOT NULL DEFAULT 7,
+        tecnico_id INT UNSIGNED NULL, actividades VARCHAR(500) NULL, observaciones TEXT NULL, fecha_realizada DATE NULL,
+        programacion_enviada DATETIME NULL, aviso_enviado DATETIME NULL, pendiente_enviado DATETIME NULL,
+        creado_por INT UNSIGNED NULL, creado DATETIME NULL, actualizado DATETIME NULL,
+        FOREIGN KEY (equipo_id) REFERENCES equipos(id) ON DELETE CASCADE)' . $eng);
+    $run('CREATE INDEX idx_mant_fecha ON mantenimientos (estado, fecha_programada)', true);
 }
 migrar();
 
@@ -211,11 +263,54 @@ function user(): ?array
     static $u = false;
     if ($u !== false) return $u;
     $id = $_SESSION['uid'] ?? null;
-    $u = $id ? one('SELECT u.*, e.nombre AS empresa_nombre FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.id = ? AND u.activo = 1', [$id]) : null;
+    $u = $id ? one('SELECT u.*, e.nombre AS empresa_nombre, r.nombre AS rol_nombre, r.codigo AS rol_codigo, r.alcance AS rol_alcance
+        FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id LEFT JOIN roles r ON r.id = u.rol_id
+        WHERE u.id = ? AND u.activo = 1', [$id]) : null;
     return $u;
 }
-function is_admin(): bool { return (user()['rol'] ?? '') === 'admin'; }
-function is_role(string ...$roles): bool { return in_array(user()['rol'] ?? '', $roles, true); }
+/** El rol «Administrador» (de sistema) tiene todos los permisos y no se puede restringir. */
+function is_admin(): bool { $u = user(); return $u && ($u['rol_codigo'] ?? $u['rol']) === 'admin'; }
+/** Alcance de los datos del usuario: todos, los de su empresa o solo los propios. */
+function alcance(): string
+{
+    $u = user();
+    if (!$u) return 'propios';
+    if (is_admin()) return 'todos';
+    $a = $u['rol_alcance'] ?? ($u['rol'] === 'empresa' ? 'empresa' : 'propios');
+    return $a === 'empresa' && !$u['empresa_id'] ? 'propios' : $a;
+}
+/** Permisos del usuario como conjunto "modulo.accion"; null = todos (administrador). */
+function permisos(): ?array
+{
+    static $p = false;
+    if ($p !== false) return $p;
+    $u = user();
+    if (!$u) return $p = [];
+    if (is_admin()) return $p = null;
+    $p = [];
+    foreach (all('SELECT modulo, accion FROM rol_permisos WHERE rol_id = ?', [(int)$u['rol_id']]) as $r) $p[$r['modulo'] . '.' . $r['accion']] = true;
+    return $p;
+}
+function can(string $modulo, string $accion = 'ver'): bool
+{
+    $p = permisos();
+    return $p === null || isset($p[$modulo . '.' . $accion]);
+}
+function can_any(string $modulo): bool
+{
+    $p = permisos();
+    if ($p === null) return true;
+    foreach ($p as $k => $_) if (str_starts_with($k, $modulo . '.')) return true;
+    return false;
+}
+function require_perm(string $modulo, string $accion = 'ver'): void
+{
+    if (!can($modulo, $accion)) {
+        http_response_code(403);
+        render_error('No tiene permiso para acceder a esta sección o realizar esta acción.');
+    }
+}
+function nombre_rol(?array $u = null): string { $u ??= user(); return $u['rol_nombre'] ?? (ROLES[$u['rol'] ?? ''] ?? ''); }
 function require_login(): void
 {
     if (!user()) { $_SESSION = []; redirect('login.php'); }
@@ -225,13 +320,6 @@ function require_login(): void
         redirect('login.php?expirada=1');
     }
     $_SESSION['last'] = time();
-}
-function require_role(string ...$roles): void
-{
-    if (!is_role(...$roles)) {
-        http_response_code(403);
-        render_error('No tiene permiso para acceder a esta sección.');
-    }
 }
 function render_error(string $msg): void
 {
@@ -337,12 +425,58 @@ function factura_estado(array $f): string
 }
 
 // ---------- Catálogos ----------
-const TICKET_CATEGORIAS = ['Hardware', 'Software', 'Red e internet', 'Impresión', 'Correo', 'Accesos y contraseñas', 'Telefonía / celular', 'Cámaras y seguridad', 'Otro'];
+const TICKET_CATEGORIAS = ['Hardware', 'Software', 'Red e internet', 'Impresión', 'Correo', 'Accesos y contraseñas', 'Telefonía / celular', 'Cámaras y seguridad', 'Climatización', 'Otro'];
 const TICKET_PRIORIDADES = ['Baja', 'Media', 'Alta', 'Crítica'];
 const TICKET_ESTADOS = ['Abierto', 'En proceso', 'En espera', 'Resuelto', 'Cerrado'];
 const TICKET_ACTIVOS = ['Abierto', 'En proceso', 'En espera'];
 const COMPUTO_TIPOS = ['Servidor', 'Escritorio', 'Portátil', 'Todo en uno'];
-const OTROS_TIPOS = ['Monitor', 'Celular', 'Tablet', 'Impresora', 'Escáner', 'Cámara', 'DVR / NVR', 'Router / Switch', 'Access point', 'UPS', 'Teléfono IP', 'Otro'];
+const OTROS_TIPOS = ['Monitor', 'Celular', 'Tablet', 'Impresora', 'Escáner', 'Cámara', 'DVR / NVR', 'Router / Switch', 'Access point', 'UPS', 'Teléfono IP', 'Aire acondicionado', 'Otro'];
+const AIRE_TIPOS = ['Aire acondicionado'];
+const AIRE_TIPO_EQUIPO = ['Split pared (mini split)', 'Split piso techo', 'Cassette', 'Ventana', 'Portátil', 'Multi split', 'Central / chiller', 'Otro'];
+const AIRE_TECNOLOGIA = ['Inverter', 'On/Off'];
+const AIRE_REFRIGERANTE = ['R410A', 'R32', 'R22', 'R134a', 'R407C', 'R290', 'Otro'];
+const AIRE_VOLTAJE = ['110 V', '208-230 V', '220 V', '220 V trifásico', '380-440 V trifásico', 'Otro'];
+
+// ---------- Mantenimiento preventivo ----------
+const MANT_ESTADOS = ['Programado', 'Realizado', 'Cancelado'];
+const MANT_PERIODOS = [0 => 'Una sola vez', 1 => 'Cada mes', 2 => 'Cada 2 meses', 3 => 'Cada 3 meses (trimestral)', 4 => 'Cada 4 meses', 6 => 'Cada 6 meses (semestral)', 12 => 'Cada año'];
+/** Actividades sugeridas al programar, según el tipo de equipo. */
+function mant_actividades_base(?string $tipo): string
+{
+    return match (true) {
+        $tipo === 'Aire acondicionado' => 'Limpieza de filtros y serpentines, revisión de presión de gas, drenaje, estado eléctrico y funcionamiento general.',
+        es_computo($tipo) => 'Limpieza interna y externa, revisión de discos y temperatura, actualizaciones del sistema, revisión de antivirus y respaldo de información.',
+        $tipo === 'Impresora' || $tipo === 'Escáner' => 'Limpieza de rodillos y cabezales, revisión de consumibles y prueba de impresión.',
+        $tipo === 'UPS' => 'Revisión de baterías, carga y transferencia, limpieza y prueba de autonomía.',
+        default => 'Limpieza, revisión de funcionamiento y estado general del equipo.',
+    };
+}
+
+// ---------- Módulos y permisos ----------
+const ACCIONES = ['ver' => 'Consultar', 'crear' => 'Crear', 'editar' => 'Editar', 'eliminar' => 'Eliminar', 'aprobar' => 'Aprobar', 'administrar' => 'Administrar'];
+/** módulo => [nombre, icono, acciones aplicables => descripción de lo que autoriza]. */
+const MODULOS = [
+    'tickets' => ['Mesa de ayuda', 'life-preserver', [
+        'ver' => 'Ver tickets (según el alcance del rol)', 'crear' => 'Crear tickets', 'editar' => 'Editar los datos de un ticket',
+        'eliminar' => 'Eliminar tickets', 'aprobar' => 'Marcar tickets como resueltos o cerrarlos', 'administrar' => 'Atender: cambiar estado, asignar, notas internas y recibir avisos del equipo']],
+    'computo' => ['Inventario de cómputo', 'pc-display', [
+        'ver' => 'Consultar equipos de cómputo', 'crear' => 'Registrar equipos', 'editar' => 'Editar equipos y su hoja de vida', 'eliminar' => 'Eliminar equipos', 'administrar' => 'Importar, exportar y acciones masivas']],
+    'inventario' => ['Otros equipos', 'phone', [
+        'ver' => 'Consultar otros equipos (incluye aires acondicionados)', 'crear' => 'Registrar equipos', 'editar' => 'Editar equipos y su hoja de vida', 'eliminar' => 'Eliminar equipos', 'administrar' => 'Importar, exportar y acciones masivas']],
+    'mantenimiento' => ['Planeador de mantenimiento', 'calendar-check', [
+        'ver' => 'Consultar la programación', 'crear' => 'Programar mantenimientos', 'editar' => 'Reprogramar y editar', 'eliminar' => 'Eliminar programaciones',
+        'aprobar' => 'Registrar mantenimientos como realizados o cancelarlos', 'administrar' => 'Enviar recordatorios manuales y exportar']],
+    'gastos' => ['Gastos', 'wallet2', ['ver' => 'Consultar gastos', 'crear' => 'Registrar gastos', 'editar' => 'Editar gastos', 'eliminar' => 'Eliminar gastos']],
+    'estadisticas' => ['Estadísticas y presupuesto', 'bar-chart-line', ['ver' => 'Consultar estadísticas y presupuesto', 'editar' => 'Definir el presupuesto']],
+    'cartera' => ['Cartera', 'receipt', ['ver' => 'Consultar facturas y abonos', 'crear' => 'Crear facturas y registrar abonos', 'editar' => 'Editar facturas', 'eliminar' => 'Eliminar facturas y abonos', 'aprobar' => 'Anular o reactivar facturas']],
+    'ingresos' => ['Entradas de dinero', 'cash-coin', ['ver' => 'Consultar entradas de dinero']],
+    'empresas' => ['Empresas', 'buildings', ['ver' => 'Consultar empresas', 'crear' => 'Crear empresas', 'editar' => 'Editar empresas']],
+    'categorias' => ['Categorías de gasto', 'tags', ['ver' => 'Consultar categorías', 'crear' => 'Crear categorías', 'editar' => 'Renombrar y activar', 'eliminar' => 'Eliminar categorías']],
+    'usuarios' => ['Usuarios', 'people', ['ver' => 'Consultar usuarios', 'crear' => 'Crear usuarios', 'editar' => 'Editar usuarios y activarlos o desactivarlos']],
+    'roles' => ['Roles y permisos', 'shield-check', ['ver' => 'Consultar roles', 'crear' => 'Crear roles', 'editar' => 'Editar permisos de los roles', 'eliminar' => 'Eliminar roles']],
+    'config' => ['Correo y notificaciones', 'envelope-at', ['ver' => 'Consultar la configuración', 'administrar' => 'Cambiar la configuración y enviar pruebas']],
+];
+const ALCANCES = ['todos' => 'Todos los registros', 'empresa' => 'Solo los de su empresa', 'propios' => 'Solo los propios (sus tickets y equipos asignados)'];
 const EQUIPO_TIPOS = [...COMPUTO_TIPOS, ...OTROS_TIPOS];
 const RENOVACION = ['Bajo', 'Medio', 'Alto'];
 const LICENCIAS = ['Legal', 'No legal', 'Libre'];
@@ -355,17 +489,21 @@ const METODOS_PAGO = ['Transferencia', 'Efectivo', 'Tarjeta', 'Consignación', '
 function ticket_scope(string $alias = 't'): array
 {
     $u = user();
-    if (is_admin()) return ['1=1', []];
-    if ($u['rol'] === 'empresa' && $u['empresa_id']) return ["$alias.empresa_id = ?", [(int)$u['empresa_id']]];
-    return ["$alias.solicitante_id = ?", [(int)$u['id']]];
+    return match (alcance()) {
+        'todos' => ['1=1', []],
+        'empresa' => ["$alias.empresa_id = ?", [(int)$u['empresa_id']]],
+        default => ["$alias.solicitante_id = ?", [(int)$u['id']]],
+    };
 }
 /** Condición SQL + parámetros para limitar equipos según el rol del usuario actual. */
 function equipo_scope(string $alias = 'eq'): array
 {
     $u = user();
-    if (is_admin()) return ['1=1', []];
-    if ($u['rol'] === 'empresa' && $u['empresa_id']) return ["$alias.empresa_id = ?", [(int)$u['empresa_id']]];
-    return ["$alias.usuario_id = ?", [(int)$u['id']]];
+    return match (alcance()) {
+        'todos' => ['1=1', []],
+        'empresa' => ["$alias.empresa_id = ?", [(int)$u['empresa_id']]],
+        default => ["$alias.usuario_id = ?", [(int)$u['id']]],
+    };
 }
 function empresas_list(?string $tipo = null): array
 {
@@ -375,7 +513,7 @@ function empresas_list(?string $tipo = null): array
 }
 
 const PREFIJOS = ['Servidor' => 'SRV', 'Escritorio' => 'PC', 'Portátil' => 'LAP', 'Todo en uno' => 'AIO', 'Monitor' => 'MON', 'Celular' => 'CEL', 'Tablet' => 'TAB',
-    'Impresora' => 'IMP', 'Escáner' => 'ESC', 'Cámara' => 'CAM', 'DVR / NVR' => 'DVR', 'Router / Switch' => 'RED', 'Access point' => 'AP', 'UPS' => 'UPS', 'Teléfono IP' => 'TEL', 'Otro' => 'EQ'];
+    'Impresora' => 'IMP', 'Escáner' => 'ESC', 'Cámara' => 'CAM', 'DVR / NVR' => 'DVR', 'Router / Switch' => 'RED', 'Access point' => 'AP', 'UPS' => 'UPS', 'Teléfono IP' => 'TEL', 'Aire acondicionado' => 'AAC', 'Otro' => 'EQ'];
 
 function siguiente_codigo(string $tipo): string
 {
@@ -385,3 +523,17 @@ function siguiente_codigo(string $tipo): string
     return $c;
 }
 function es_computo(?string $tipo): bool { return in_array($tipo, COMPUTO_TIPOS, true); }
+
+require_once APP_DIR . "/mail.php";
+require_once APP_DIR . "/notificaciones.php";
+
+/** Roles disponibles (para listas y formularios). */
+function roles_todos(): array
+{
+    return all('SELECT r.*, (SELECT COUNT(*) FROM usuarios u WHERE u.rol_id = r.id AND u.activo = 1) AS n_usuarios FROM roles r ORDER BY r.sistema DESC, r.id');
+}
+/** Valor de la columna heredada usuarios.rol según el rol asignado (admin / empresa / usuario). */
+function rol_legacy(array $rol): string
+{
+    return $rol['codigo'] === 'admin' ? 'admin' : ($rol['alcance'] === 'empresa' ? 'empresa' : 'usuario');
+}

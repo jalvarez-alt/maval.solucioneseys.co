@@ -1,5 +1,5 @@
 <?php
-require_role('admin');
+require_perm('estadisticas', 'ver');
 $anio = (int)get('anio', date('Y'));
 $title = 'Estadísticas de gastos ' . $anio;
 $corte = $anio < (int)date('Y') ? 12 : ($anio > (int)date('Y') ? 0 : (int)date('n'));
@@ -34,7 +34,7 @@ $mesNom = $corte ? MESES[$corte] : '';
 ?>
 <div class="tabs">
   <a class="on" href="<?= url('estadisticas', ['anio' => $anio]) ?>">Estadísticas</a>
-  <a href="<?= url('presupuesto', ['anio' => $anio]) ?>">Presupuesto</a>
+  <?php if (can('estadisticas', 'editar')): ?><a href="<?= url('presupuesto', ['anio' => $anio]) ?>">Presupuesto</a><?php endif; ?>
   <form method="get" class="ms-auto pb-1"><input type="hidden" name="p" value="estadisticas"><select class="form-select form-select-sm" name="anio" data-autosubmit><?= options(array_combine($anios, $anios), $anio) ?></select></form>
 </div>
 

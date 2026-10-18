@@ -1,5 +1,5 @@
 <?php
-require_role('admin');
+require_perm('cartera', get('id') ? 'editar' : 'crear');
 $id = (int)get('id', 0);
 $r = $id ? one('SELECT * FROM facturas WHERE id = ?', [$id]) : null;
 if ($id && !$r) not_found();

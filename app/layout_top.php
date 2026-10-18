@@ -7,14 +7,18 @@ $p = [
     'ticket' => 'tickets', 'ticket_form' => 'tickets', 'equipo' => (es_computo((string)val('SELECT tipo FROM equipos WHERE id = ?', [(int)($_GET['id'] ?? 0)])) ? 'computo' : 'inventario'), 'equipo_form' => 'inventario',
     'computo_lista' => 'computo', 'computo_form' => 'computo', 'importar' => (($_GET['inv'] ?? '') === 'otros' ? 'inventario' : 'computo'),
     'gasto_form' => 'gastos', 'presupuesto' => 'estadisticas', 'factura' => 'cartera', 'factura_form' => 'cartera',
-    'usuario_form' => 'usuarios', 'empresa_form' => 'empresas',
+    'usuario_form' => 'usuarios', 'empresa_form' => 'empresas', 'rol_form' => 'roles', 'mantenimiento_form' => 'mantenimiento',
 ][$p] ?? $p;
 $appName = $CONFIG['app_name'] ?? 'MAVAL';
-$abiertos = $u ? (int)val(
-    is_admin() ? "SELECT COUNT(*) FROM tickets WHERE estado IN ('Abierto','En proceso','En espera')"
-        : ($u['rol'] === 'empresa' ? "SELECT COUNT(*) FROM tickets WHERE estado IN ('Abierto','En proceso','En espera') AND empresa_id = " . (int)$u['empresa_id']
-        : "SELECT COUNT(*) FROM tickets WHERE estado IN ('Abierto','En proceso','En espera') AND solicitante_id = " . (int)$u['id'])
-) : 0;
+$abiertos = $mantVencidos = 0;
+if ($u && can('tickets', 'ver')) {
+    [$ts, $tp] = ticket_scope('t');
+    $abiertos = (int)val("SELECT COUNT(*) FROM tickets t WHERE $ts AND t.estado IN ('Abierto','En proceso','En espera')", $tp);
+}
+if ($u && can('mantenimiento', 'ver')) {
+    [$es, $ep] = equipo_scope('eq');
+    $mantVencidos = (int)val("SELECT COUNT(*) FROM mantenimientos m JOIN equipos eq ON eq.id = m.equipo_id WHERE $es AND m.estado = 'Programado' AND m.fecha_programada < ? AND eq.estado <> 'Dado de baja'", array_merge($ep, [today()]));
+}
 
 function nav_item(string $page, string $icon, string $label, string $current, string $extra = ''): string
 {
@@ -41,19 +45,24 @@ function nav_item(string $page, string $icon, string $label, string $current, st
     <nav>
       <?= nav_item('inicio', 'grid-1x2', 'Inicio', $p) ?>
       <div class="nav-h">Soporte</div>
-      <?= nav_item('tickets', 'life-preserver', 'Mesa de ayuda', $p, $abiertos ? '<em class="cnt">' . $abiertos . '</em>' : '') ?>
-      <?= nav_item('computo', 'pc-display', 'Inventario de cómputo', $p) ?>
-      <?= nav_item('inventario', 'phone', 'Otros equipos', $p) ?>
-      <?php if (is_admin()): ?>
+      <?php if (can('tickets')) echo nav_item('tickets', 'life-preserver', 'Mesa de ayuda', $p, $abiertos ? '<em class="cnt">' . $abiertos . '</em>' : ''); ?>
+      <?php if (can('computo')) echo nav_item('computo', 'pc-display', 'Inventario de cómputo', $p); ?>
+      <?php if (can('inventario')) echo nav_item('inventario', 'phone', 'Otros equipos', $p); ?>
+      <?php if (can('mantenimiento')) echo nav_item('mantenimiento', 'calendar-check', 'Planeador de mantenimiento', $p, $mantVencidos ? '<em class="cnt" style="background:#b91c1c" title="Mantenimientos vencidos">' . $mantVencidos . '</em>' : ''); ?>
+      <?php if (can('gastos') || can('estadisticas') || can('cartera') || can('ingresos')): ?>
       <div class="nav-h">Finanzas</div>
-      <?= nav_item('gastos', 'wallet2', 'Gastos', $p) ?>
-      <?= nav_item('estadisticas', 'bar-chart-line', 'Estadísticas y presupuesto', $p) ?>
-      <?= nav_item('cartera', 'receipt', 'Cartera', $p) ?>
-      <?= nav_item('ingresos', 'cash-coin', 'Entradas de dinero', $p) ?>
+      <?php if (can('gastos')) echo nav_item('gastos', 'wallet2', 'Gastos', $p); ?>
+      <?php if (can('estadisticas')) echo nav_item('estadisticas', 'bar-chart-line', 'Estadísticas y presupuesto', $p); ?>
+      <?php if (can('cartera')) echo nav_item('cartera', 'receipt', 'Cartera', $p); ?>
+      <?php if (can('ingresos')) echo nav_item('ingresos', 'cash-coin', 'Entradas de dinero', $p); ?>
+      <?php endif; ?>
+      <?php if (can('usuarios') || can('roles') || can('empresas') || can('categorias') || can('config')): ?>
       <div class="nav-h">Administración</div>
-      <?= nav_item('usuarios', 'people', 'Usuarios', $p) ?>
-      <?= nav_item('empresas', 'buildings', 'Empresas', $p) ?>
-      <?= nav_item('categorias', 'tags', 'Categorías de gasto', $p) ?>
+      <?php if (can('usuarios')) echo nav_item('usuarios', 'people', 'Usuarios', $p); ?>
+      <?php if (can('roles')) echo nav_item('roles', 'shield-check', 'Roles y permisos', $p); ?>
+      <?php if (can('empresas')) echo nav_item('empresas', 'buildings', 'Empresas', $p); ?>
+      <?php if (can('categorias')) echo nav_item('categorias', 'tags', 'Categorías de gasto', $p); ?>
+      <?php if (can('config')) echo nav_item('config_correo', 'envelope-at', 'Correo y notificaciones', $p); ?>
       <?php endif; ?>
     </nav>
     <div class="side-foot">v<?= APP_VERSION ?></div>
@@ -65,7 +74,7 @@ function nav_item(string $page, string $icon, string $label, string $current, st
       <div class="dropdown ms-auto">
         <button class="user-chip" data-bs-toggle="dropdown">
           <span class="avatar"><?= e(mb_strtoupper(mb_substr($u['nombre'], 0, 1))) ?></span>
-          <span class="d-none d-sm-inline"><span class="un"><?= e($u['nombre']) ?></span><small><?= e(ROLES[$u['rol']]) ?><?= $u['empresa_nombre'] ? ' · ' . e($u['empresa_nombre']) : '' ?></small></span>
+          <span class="d-none d-sm-inline"><span class="un"><?= e($u['nombre']) ?></span><small><?= e(nombre_rol($u)) ?><?= $u['empresa_nombre'] ? ' · ' . e($u['empresa_nombre']) : '' ?></small></span>
           <i class="bi bi-chevron-down small"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">

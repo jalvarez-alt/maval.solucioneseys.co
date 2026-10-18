@@ -21,7 +21,7 @@ function computo_filtros(array $src): array
         for ($i = 0; $i < 9; $i++) $params[] = '%' . $f['b'] . '%';
         $act['b'] = 'Búsqueda: ' . $f['b'];
     }
-    if ($f['empresa'] && is_admin()) { $w[] = 'eq.empresa_id = ?'; $params[] = (int)$f['empresa']; $act['empresa'] = 'Propietario: ' . (val('SELECT nombre FROM empresas WHERE id = ?', [(int)$f['empresa']]) ?? '?'); }
+    if ($f['empresa'] && alcance() === 'todos') { $w[] = 'eq.empresa_id = ?'; $params[] = (int)$f['empresa']; $act['empresa'] = 'Propietario: ' . (val('SELECT nombre FROM empresas WHERE id = ?', [(int)$f['empresa']]) ?? '?'); }
     if ($f['tipo'] && in_array($f['tipo'], COMPUTO_TIPOS, true)) { $w[] = 'eq.tipo = ?'; $params[] = $f['tipo']; $act['tipo'] = 'Tipo: ' . $f['tipo']; }
     if ($f['marca']) { $w[] = 'eq.marca = ?'; $params[] = $f['marca']; $act['marca'] = 'Marca: ' . $f['marca']; }
     if ($f['so']) { $w[] = "EXISTS (SELECT 1 FROM equipo_software s WHERE s.equipo_id = eq.id AND s.categoria = 'so' AND s.nombre = ?)"; $params[] = $f['so']; $act['so'] = 'S.O.: ' . $f['so']; }
@@ -106,7 +106,7 @@ function computo_filtros_form(array $f, array $act, string $page, bool $compacto
     $h .= '<div class="d-flex gap-2 mb-3 flex-wrap"><input class="form-control grow" style="flex:1 1 280px" type="search" name="b" value="' . e($f['b'] ?? '') . '" placeholder="Buscar usuario, cargo, correo, serial, marca, modelo, procesador…">'
         . '<button class="btn btn-outline-secondary"><i class="bi bi-search"></i> Buscar</button></div>';
     $h .= '<div class="filters-grid">';
-    if (is_admin()) $h .= $sel('empresa', 'Propietario', empresas_list());
+    if (alcance() === 'todos') $h .= $sel('empresa', 'Propietario', empresas_list());
     $h .= $sel('tipo', 'Tipo', array_combine(COMPUTO_TIPOS, COMPUTO_TIPOS));
     $h .= $sel('marca', 'Marca', array_combine($marcas, $marcas) ?: [], 'Todas');
     $h .= $sel('so', 'Sistema operativo', array_combine($sos, $sos) ?: []);

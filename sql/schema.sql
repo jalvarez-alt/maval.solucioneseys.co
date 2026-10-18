@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   email VARCHAR(150) NOT NULL,
   password VARCHAR(255) NOT NULL,
   rol VARCHAR(10) NOT NULL DEFAULT 'usuario',
+  rol_id INT UNSIGNED NULL,
   empresa_id INT UNSIGNED NULL,
   cargo VARCHAR(100) NULL,
   telefono VARCHAR(40) NULL,
@@ -60,6 +61,12 @@ CREATE TABLE IF NOT EXISTS equipos (
   ram VARCHAR(40) NULL,
   disco VARCHAR(80) NULL,
   renovacion VARCHAR(10) NULL,
+  btu INT NULL,
+  tipo_aire VARCHAR(30) NULL,
+  tecnologia VARCHAR(12) NULL,
+  refrigerante VARCHAR(12) NULL,
+  voltaje VARCHAR(20) NULL,
+  serial_exterior VARCHAR(120) NULL,
   especificaciones TEXT NULL,
   notas TEXT NULL,
   creado DATETIME NULL,
@@ -203,4 +210,62 @@ CREATE TABLE IF NOT EXISTS pagos (
 CREATE TABLE IF NOT EXISTS app_meta (
   clave VARCHAR(40) NOT NULL PRIMARY KEY,
   valor VARCHAR(255) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v3: roles y permisos (los roles Administrador, Usuario y Empresa los crea la aplicación al iniciar)
+CREATE TABLE IF NOT EXISTS roles (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  codigo VARCHAR(10) NULL,
+  nombre VARCHAR(60) NOT NULL,
+  descripcion VARCHAR(255) NULL,
+  alcance VARCHAR(10) NOT NULL DEFAULT 'propios',
+  sistema TINYINT NOT NULL DEFAULT 0,
+  creado DATETIME NULL,
+  UNIQUE KEY uq_roles_nombre (nombre)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS rol_permisos (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  rol_id INT UNSIGNED NOT NULL,
+  modulo VARCHAR(30) NOT NULL,
+  accion VARCHAR(15) NOT NULL,
+  UNIQUE KEY uq_rol_permiso (rol_id, modulo, accion),
+  FOREIGN KEY (rol_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v3: ajustes (correo, notificaciones) y registro de correos enviados
+CREATE TABLE IF NOT EXISTS ajustes (
+  clave VARCHAR(40) NOT NULL PRIMARY KEY,
+  valor TEXT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS correo_log (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  fecha DATETIME NOT NULL,
+  destinatarios VARCHAR(500) NOT NULL,
+  asunto VARCHAR(255) NOT NULL,
+  ok TINYINT NOT NULL DEFAULT 0,
+  error VARCHAR(500) NULL,
+  motivo VARCHAR(30) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v3: planeador de mantenimiento preventivo
+CREATE TABLE IF NOT EXISTS mantenimientos (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  equipo_id INT UNSIGNED NOT NULL,
+  fecha_programada DATE NOT NULL,
+  estado VARCHAR(12) NOT NULL DEFAULT 'Programado',
+  periodicidad_meses SMALLINT NOT NULL DEFAULT 0,
+  aviso_dias SMALLINT NOT NULL DEFAULT 7,
+  tecnico_id INT UNSIGNED NULL,
+  actividades VARCHAR(500) NULL,
+  observaciones TEXT NULL,
+  fecha_realizada DATE NULL,
+  programacion_enviada DATETIME NULL,
+  aviso_enviado DATETIME NULL,
+  pendiente_enviado DATETIME NULL,
+  creado_por INT UNSIGNED NULL,
+  creado DATETIME NULL,
+  actualizado DATETIME NULL,
+  FOREIGN KEY (equipo_id) REFERENCES equipos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

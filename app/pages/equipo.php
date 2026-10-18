@@ -8,10 +8,13 @@ $q = one("SELECT eq.*, emp.nombre AS empresa, u.nombre AS usuario, u.email AS us
 if (!$q) not_found();
 $title = $q['codigo'] . ' · ' . $q['tipo'];
 $comp = es_computo($q['tipo']);
+$mod = $comp ? 'computo' : 'inventario';
+require_perm($mod, 'ver');
 $soft = $comp ? all('SELECT * FROM equipo_software WHERE equipo_id = ? ORDER BY CASE categoria WHEN \'so\' THEN 1 WHEN \'ofimatica\' THEN 2 WHEN \'antivirus\' THEN 3 ELSE 4 END, nombre', [$id]) : [];
 $noLegal = count(array_filter($soft, fn($s) => $s['licencia'] === 'No legal'));
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && is_admin()) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_perm($mod, post('accion') === 'eliminar' ? 'eliminar' : 'editar');
     if (post('accion') === 'nota' && post('nota')) {
         insert('equipo_movimientos', ['equipo_id' => $id, 'usuario_id' => user()['id'], 'descripcion' => mb_substr((string)post('nota'), 0, 500), 'fecha' => now()]);
         flash('Nota agregada a la hoja de vida.');
@@ -35,10 +38,11 @@ $garantia = $q['garantia_hasta'] ? ($q['garantia_hasta'] >= today() ? badge('Vig
   <?php if ($comp && $q['renovacion']): ?><?= badge('Renovación ' . mb_strtolower($q['renovacion']), ['Bajo' => 'success', 'Medio' => 'warning', 'Alto' => 'danger'][$q['renovacion']]) ?><?php endif; ?>
   <?php if ($noLegal): ?><?= badge($noLegal . ' software no legal', 'danger') ?><?php endif; ?>
   <div class="ms-auto d-flex gap-2">
-    <a class="btn btn-sm btn-primary" href="<?= url('ticket_form', ['equipo' => $id]) ?>"><i class="bi bi-life-preserver me-1"></i>Reportar falla</a>
-    <?php if (is_admin()): ?>
+    <?php if (can('tickets', 'crear')): ?><a class="btn btn-sm btn-primary" href="<?= url('ticket_form', ['equipo' => $id]) ?>"><i class="bi bi-life-preserver me-1"></i>Reportar falla</a><?php endif; ?>
+    <?php if (can('mantenimiento', 'crear') && $q['estado'] !== 'Dado de baja'): ?><a class="btn btn-sm btn-outline-primary" href="<?= url('mantenimiento_form', ['equipo' => $id]) ?>"><i class="bi bi-calendar-plus me-1"></i>Programar mantenimiento</a><?php endif; ?>
+    <?php if (can($mod, 'editar')): ?>
       <a class="btn btn-sm btn-outline-primary" href="<?= url($comp ? 'computo_form' : 'equipo_form', ['id' => $id]) ?>"><i class="bi bi-pencil"></i> Editar</a>
-      <form method="post" data-confirm="¿Eliminar el equipo? Los tickets se conservarán sin equipo vinculado. Si solo salió de servicio, mejor cambie su estado a 'Dado de baja'."><?= csrf_field() ?><input type="hidden" name="accion" value="eliminar"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form>
+      <?php if (can($mod, 'eliminar')): ?><form method="post" data-confirm="¿Eliminar el equipo? Los tickets se conservarán sin equipo vinculado. Si solo salió de servicio, mejor cambie su estado a 'Dado de baja'."><?= csrf_field() ?><input type="hidden" name="accion" value="eliminar"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form><?php endif; ?>
     <?php endif; ?>
   </div>
 </div>
@@ -55,7 +59,7 @@ $garantia = $q['garantia_hasta'] ? ($q['garantia_hasta'] >= today() ? badge('Vig
           <tr><td class="muted"><?= e((SOFT_BASE + ['otro' => 'Otro'])[$s['categoria']] ?? $s['categoria']) ?></td><td class="fw-semibold"><?= e($s['nombre']) ?></td><td><?= e($s['version'] ?: '—') ?></td>
             <td><?= e($s['tipo_licencia'] ?: '—') ?></td><td><?= badge($s['licencia']) ?></td><td class="nowrap <?= $venc ? 'text-danger' : '' ?>"><?= $s['vence'] ? fdate($s['vence']) . ($venc ? ' (vencida)' : '') : '—' ?></td></tr>
         <?php endforeach; ?>
-        <?php if (!$soft): ?><tr><td colspan="6" class="empty">Sin software registrado.<?= is_admin() ? ' <a href="' . url('computo_form', ['id' => $id]) . '">Registrar</a>' : '' ?></td></tr><?php endif; ?>
+        <?php if (!$soft): ?><tr><td colspan="6" class="empty">Sin software registrado.<?= can($mod, 'editar') ? ' <a href="' . url('computo_form', ['id' => $id]) . '">Registrar</a>' : '' ?></td></tr><?php endif; ?>
         </tbody>
       </table></div>
     </div>
@@ -72,6 +76,23 @@ $garantia = $q['garantia_hasta'] ? ($q['garantia_hasta'] >= today() ? badge('Vig
         </tbody>
       </table></div>
     </div>
+    <?php if (can('mantenimiento', 'ver')):
+        $mants = all('SELECT m.*, t.nombre AS tecnico FROM mantenimientos m LEFT JOIN usuarios t ON t.id = m.tecnico_id WHERE m.equipo_id = ? ORDER BY m.estado = \'Programado\' DESC, m.fecha_programada DESC LIMIT 8', [$id]); ?>
+    <div class="panel">
+      <div class="panel-h"><h3>Mantenimiento preventivo</h3><div class="actions"><a class="small" href="<?= url('mantenimiento', ['b' => $q['codigo'], 'estado' => 'todos']) ?>">Ver en el planeador</a></div></div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Fecha</th><th>Estado</th><th>Periodicidad</th><th>Técnico</th><th>Observaciones</th></tr></thead>
+        <tbody>
+        <?php foreach ($mants as $m): $venc = $m['estado'] === 'Programado' && $m['fecha_programada'] < today(); ?>
+          <tr><td class="nowrap <?= $venc ? 'text-danger' : '' ?>"><?= can('mantenimiento', 'editar') ? '<a class="row-link" href="' . url('mantenimiento_form', ['id' => $m['id']]) . '">' . fdate($m['fecha_realizada'] ?: $m['fecha_programada']) . '</a>' : fdate($m['fecha_realizada'] ?: $m['fecha_programada']) ?></td>
+            <td><?= badge($venc ? 'Vencido' : $m['estado'], $venc ? 'danger' : ($m['estado'] === 'Realizado' ? 'success' : ($m['estado'] === 'Cancelado' ? 'secondary' : 'info'))) ?></td>
+            <td class="muted small"><?= e(MANT_PERIODOS[(int)$m['periodicidad_meses']] ?? '—') ?></td><td><?= e($m['tecnico'] ?: '—') ?></td><td class="muted small"><?= e(mb_strimwidth((string)$m['observaciones'], 0, 70, '…')) ?></td></tr>
+        <?php endforeach; ?>
+        <?php if (!$mants): ?><tr><td colspan="5" class="empty">Sin mantenimientos programados.<?= can('mantenimiento', 'crear') ? ' <a href="' . url('mantenimiento_form', ['equipo' => $id]) . '">Programar</a>' : '' ?></td></tr><?php endif; ?>
+        </tbody>
+      </table></div>
+    </div>
+    <?php endif; ?>
     <?php if ($q['especificaciones'] || $q['notas']): ?>
     <div class="panel">
       <?php if ($q['especificaciones']): ?><div class="panel-h"><h3>Especificaciones</h3></div><div class="msg-b mb-3"><?= e($q['especificaciones']) ?></div><?php endif; ?>
@@ -80,7 +101,7 @@ $garantia = $q['garantia_hasta'] ? ($q['garantia_hasta'] >= today() ? badge('Vig
     <?php endif; ?>
     <div class="panel">
       <div class="panel-h"><h3>Hoja de vida</h3></div>
-      <?php if (is_admin()): ?>
+      <?php if (can($mod, 'editar')): ?>
       <form method="post" class="d-flex gap-2 mb-3"><?= csrf_field() ?><input type="hidden" name="accion" value="nota">
         <input class="form-control" name="nota" maxlength="500" placeholder="Registrar mantenimiento, cambio de pieza, préstamo…" required>
         <button class="btn btn-outline-primary text-nowrap">Agregar</button>
@@ -111,6 +132,14 @@ $garantia = $q['garantia_hasta'] ? ($q['garantia_hasta'] >= today() ? badge('Vig
         <dt>Marca</dt><dd><?= e($q['marca'] ?: '—') ?></dd>
         <dt>Modelo</dt><dd><?= e($q['modelo'] ?: '—') ?></dd>
         <dt>Serial</dt><dd><?= e($q['serial'] ?: '—') ?></dd>
+        <?php if ($q['tipo'] === 'Aire acondicionado'): ?>
+        <dt>Tipo de aire</dt><dd><?= e($q['tipo_aire'] ?: '—') ?></dd>
+        <dt>Capacidad</dt><dd><?= $q['btu'] ? num($q['btu']) . ' BTU/h' . ' <small class="muted">(' . num($q['btu'] / 12000, 1) . ' ton)</small>' : '—' ?></dd>
+        <dt>Tecnología</dt><dd><?= e($q['tecnologia'] ?: '—') ?></dd>
+        <dt>Refrigerante</dt><dd><?= e($q['refrigerante'] ?: '—') ?></dd>
+        <dt>Voltaje</dt><dd><?= e($q['voltaje'] ?: '—') ?></dd>
+        <dt>Serial unidad exterior</dt><dd><?= e($q['serial_exterior'] ?: '—') ?></dd>
+        <?php endif; ?>
         <?php if ($q['imei']): ?><dt>IMEI</dt><dd><?= e($q['imei']) ?></dd><?php endif; ?>
         <?php if ($q['linea']): ?><dt>Línea</dt><dd><?= e($q['linea']) ?></dd><?php endif; ?>
         <?php if ($q['ip']): ?><dt>IP</dt><dd><?= e($q['ip']) ?></dd><?php endif; ?>

@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div><label class="form-label">Nombre</label><input class="form-control" name="nombre" value="<?= e($u['nombre']) ?>" required></div>
       <div><label class="form-label">Teléfono</label><input class="form-control" name="telefono" value="<?= e($u['telefono']) ?>"></div>
       <div><label class="form-label">Correo</label><input class="form-control" value="<?= e($u['email']) ?>" disabled></div>
-      <div><label class="form-label">Rol</label><input class="form-control" value="<?= e(ROLES[$u['rol']]) ?><?= $u['empresa_nombre'] ? ' · ' . e($u['empresa_nombre']) : '' ?>" disabled></div>
+      <div><label class="form-label">Rol</label><input class="form-control" value="<?= e(nombre_rol($u)) ?><?= $u['empresa_nombre'] ? ' · ' . e($u['empresa_nombre']) : '' ?>" disabled></div>
     </div>
     <h6 class="sec">Cambiar contraseña</h6>
     <div class="form-grid">

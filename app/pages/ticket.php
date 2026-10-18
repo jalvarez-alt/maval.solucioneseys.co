@@ -13,46 +13,58 @@ $t = one("SELECT t.*, s.nombre AS solicitante, s.email AS solicitante_email, s.t
 if (!$t) not_found();
 $title = $t['codigo'];
 
-function cambiar_estado(array $t, string $nuevo, int $uid): void
+// «Atender» = cambiar estado, asignar y escribir notas internas; «aprobar» = marcar como resuelto o cerrar
+$staff = can('tickets', 'administrar');
+$puedeAprobar = can('tickets', 'aprobar');
+
+function cambiar_estado(array $t, string $nuevo, int $uid): bool
 {
-    if ($nuevo === $t['estado']) return;
+    if ($nuevo === $t['estado']) return false;
     $d = ['estado' => $nuevo, 'actualizado' => now()];
     $d['cerrado'] = in_array($nuevo, ['Resuelto', 'Cerrado'], true) ? ($t['cerrado'] ?: now()) : null;
     update('tickets', $d, (int)$t['id']);
     insert('ticket_comentarios', ['ticket_id' => $t['id'], 'usuario_id' => $uid, 'mensaje' => 'Estado cambiado de «' . $t['estado'] . '» a «' . $nuevo . '».', 'interno' => 0, 'creado' => now()]);
+    return true;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accion = post('accion');
     if ($accion === 'responder') {
         $msg = (string)post('mensaje', '');
-        $interno = is_admin() && post('interno') ? 1 : 0;
+        $interno = $staff && post('interno') ? 1 : 0;
         $hayArchivos = !empty($_FILES['adjuntos']['name'][0]);
-        if ($msg === '' && !$hayArchivos && !(is_admin() && post('estado') && post('estado') !== $t['estado'])) {
+        $pedido = $staff ? (string)post('estado', $t['estado']) : $t['estado'];
+        if ($msg === '' && !$hayArchivos && !($staff && $pedido !== $t['estado'])) {
             flash('Escriba un mensaje o adjunte un archivo.', 'warning');
-        } elseif ($t['estado'] === 'Cerrado' && !is_admin()) {
+        } elseif ($t['estado'] === 'Cerrado' && !$staff) {
             flash('El ticket está cerrado. Cree uno nuevo si el problema persiste.', 'warning');
+        } elseif ($staff && $pedido !== $t['estado'] && in_array($pedido, ['Resuelto', 'Cerrado'], true) && !$puedeAprobar) {
+            flash('No tiene permiso para marcar tickets como resueltos o cerrarlos.', 'warning');
         } else {
             if ($msg !== '' || $hayArchivos) {
                 $cid = insert('ticket_comentarios', ['ticket_id' => $id, 'usuario_id' => $u['id'], 'mensaje' => $msg !== '' ? $msg : '(archivo adjunto)', 'interno' => $interno, 'creado' => now()]);
                 save_uploads('adjuntos', 'ticket', $id);
                 update('tickets', ['actualizado' => now()], $id);
             }
-            if (is_admin()) {
-                $nuevo = (string)post('estado', $t['estado']);
-                if (in_array($nuevo, TICKET_ESTADOS, true)) cambiar_estado($t, $nuevo, (int)$u['id']);
-                if ($t['estado'] === 'Abierto' && $nuevo === 'Abierto' && !$interno && $msg !== '') cambiar_estado($t, 'En proceso', (int)$u['id']);
+            $cambio = null;
+            if ($staff) {
+                if (in_array($pedido, TICKET_ESTADOS, true) && cambiar_estado($t, $pedido, (int)$u['id'])) $cambio = $pedido;
+                if ($t['estado'] === 'Abierto' && $pedido === 'Abierto' && !$interno && $msg !== '' && cambiar_estado($t, 'En proceso', (int)$u['id'])) $cambio = 'En proceso';
                 if (!$t['asignado_id']) update('tickets', ['asignado_id' => $u['id']], $id);
             } elseif (in_array($t['estado'], ['Resuelto', 'En espera'], true)) {
                 // El solicitante respondió: vuelve a la cola del técnico
-                cambiar_estado($t, 'En proceso', (int)$u['id']);
+                if (cambiar_estado($t, 'En proceso', (int)$u['id'])) $cambio = 'En proceso';
             }
+            // Correo: un solo aviso por envío (el cambio de estado lleva el mensaje; las notas internas no se envían)
+            $publico = $interno ? '' : ($msg !== '' ? $msg : ($hayArchivos ? '(archivo adjunto)' : ''));
+            if ($cambio) notificar_ticket($id, 'estado', ['anterior' => $t['estado'], 'nuevo' => $cambio, 'mensaje' => $publico]);
+            elseif ($publico !== '') notificar_ticket($id, 'respuesta', ['mensaje' => $publico]);
             flash('Respuesta registrada.');
         }
-    } elseif ($accion === 'cerrar' && !is_admin() && $t['estado'] === 'Resuelto') {
-        cambiar_estado($t, 'Cerrado', (int)$u['id']);
+    } elseif ($accion === 'cerrar' && !$staff && $t['estado'] === 'Resuelto') {
+        if (cambiar_estado($t, 'Cerrado', (int)$u['id'])) notificar_ticket($id, 'estado', ['anterior' => 'Resuelto', 'nuevo' => 'Cerrado']);
         flash('Gracias. El ticket quedó cerrado.');
-    } elseif ($accion === 'eliminar' && is_admin()) {
+    } elseif ($accion === 'eliminar' && can('tickets', 'eliminar')) {
         foreach (adjuntos('ticket', $id) as $a) @unlink(UPLOAD_DIR . '/' . $a['archivo']);
         q("DELETE FROM adjuntos WHERE entidad = 'ticket' AND entidad_id = ?", [$id]);
         q('DELETE FROM tickets WHERE id = ?', [$id]);
@@ -62,8 +74,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(url('ticket', ['id' => $id]));
 }
 
-$coms = all('SELECT c.*, u.nombre, u.rol FROM ticket_comentarios c LEFT JOIN usuarios u ON u.id = c.usuario_id
-    WHERE c.ticket_id = ? ' . (is_admin() ? '' : 'AND c.interno = 0') . ' ORDER BY c.id', [$id]);
+$coms = all("SELECT c.*, u.nombre, u.rol,
+        (ro.codigo = 'admin' OR u.rol_id IN (SELECT rol_id FROM rol_permisos WHERE modulo = 'tickets' AND accion = 'administrar')) AS es_soporte
+    FROM ticket_comentarios c LEFT JOIN usuarios u ON u.id = c.usuario_id LEFT JOIN roles ro ON ro.id = u.rol_id
+    WHERE c.ticket_id = ? " . ($staff ? '' : 'AND c.interno = 0') . ' ORDER BY c.id', [$id]);
 $adj = adjuntos('ticket', $id);
 $otros = $t['equipo_id'] ? all("SELECT id, codigo, asunto, estado, creado FROM tickets WHERE equipo_id = ? AND id <> ? ORDER BY id DESC LIMIT 6", [$t['equipo_id'], $id]) : [];
 
@@ -78,10 +92,10 @@ function duracion(string $desde, ?string $hasta): string
   <a class="btn btn-sm btn-outline-secondary" href="<?= url('tickets') ?>"><i class="bi bi-arrow-left"></i> Tickets</a>
   <h2 class="h5 m-0 ms-1"><?= e($t['asunto']) ?></h2>
   <?= badge($t['estado']) ?> <?= badge($t['prioridad']) ?>
-  <?php if (is_admin()): ?>
+  <?php if (can('tickets', 'editar') || can('tickets', 'eliminar')): ?>
   <div class="ms-auto d-flex gap-2">
-    <a class="btn btn-sm btn-outline-primary" href="<?= url('ticket_form', ['id' => $id]) ?>"><i class="bi bi-pencil"></i> Editar</a>
-    <form method="post" data-confirm="¿Eliminar este ticket y todo su historial? Esta acción no se puede deshacer."><?= csrf_field() ?><input type="hidden" name="accion" value="eliminar"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form>
+    <?php if (can('tickets', 'editar')): ?><a class="btn btn-sm btn-outline-primary" href="<?= url('ticket_form', ['id' => $id]) ?>"><i class="bi bi-pencil"></i> Editar</a><?php endif; ?>
+    <?php if (can('tickets', 'eliminar')): ?><form method="post" data-confirm="¿Eliminar este ticket y todo su historial? Esta acción no se puede deshacer."><?= csrf_field() ?><input type="hidden" name="accion" value="eliminar"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form><?php endif; ?>
   </div>
   <?php endif; ?>
 </div>
@@ -101,7 +115,7 @@ function duracion(string $desde, ?string $hasta): string
         <?php else: ?>
           <div class="msg <?= $c['interno'] ? 'interno' : '' ?> <?= (int)$c['usuario_id'] === (int)$u['id'] ? 'mine' : '' ?>">
             <div class="msg-h"><strong><?= e($c['nombre'] ?? 'Usuario eliminado') ?></strong>
-              <?= $c['rol'] === 'admin' ? badge('Soporte', 'primary') : '' ?>
+              <?= $c['es_soporte'] ? badge('Soporte', 'primary') : '' ?>
               <?= $c['interno'] ? badge('Nota interna', 'warning') : '' ?>
               <span class="ms-auto"><?= fdate($c['creado'], true) ?></span></div>
             <div class="msg-b"><?= e($c['mensaje']) ?></div>
@@ -110,16 +124,16 @@ function duracion(string $desde, ?string $hasta): string
       <?php endforeach; ?>
     </div>
 
-    <?php if ($t['estado'] !== 'Cerrado' || is_admin()): ?>
+    <?php if ($t['estado'] !== 'Cerrado' || $staff): ?>
     <div class="panel mt-3">
       <form method="post" enctype="multipart/form-data">
         <?= csrf_field() ?><input type="hidden" name="accion" value="responder">
         <label class="form-label">Responder</label>
-        <textarea class="form-control mb-2" name="mensaje" rows="4" placeholder="<?= is_admin() ? 'Respuesta para el solicitante o nota interna…' : 'Agregue información o responda al técnico…' ?>"></textarea>
+        <textarea class="form-control mb-2" name="mensaje" rows="4" placeholder="<?= $staff ? 'Respuesta para el solicitante o nota interna…' : 'Agregue información o responda al técnico…' ?>"></textarea>
         <input class="form-control form-control-sm mb-3" type="file" name="adjuntos[]" multiple>
         <div class="d-flex flex-wrap gap-3 align-items-center">
-          <?php if (is_admin()): ?>
-            <div class="d-flex align-items-center gap-2"><span class="small muted">Estado:</span><select class="form-select form-select-sm" name="estado" style="width:auto"><?= options(TICKET_ESTADOS, $t['estado'], false) ?></select></div>
+          <?php if ($staff): ?>
+            <div class="d-flex align-items-center gap-2"><span class="small muted">Estado:</span><select class="form-select form-select-sm" name="estado" style="width:auto"><?= options(array_filter(TICKET_ESTADOS, fn($e) => $puedeAprobar || $e === $t['estado'] || !in_array($e, ['Resuelto', 'Cerrado'], true)), $t['estado'], false) ?></select></div>
             <div class="form-check"><input class="form-check-input" type="checkbox" name="interno" value="1" id="int"><label class="form-check-label small" for="int">Nota interna (no la ve el solicitante)</label></div>
           <?php endif; ?>
           <button class="btn btn-primary ms-auto"><i class="bi bi-send me-1"></i>Enviar</button>
@@ -128,7 +142,7 @@ function duracion(string $desde, ?string $hasta): string
     </div>
     <?php endif; ?>
 
-    <?php if (!is_admin() && $t['estado'] === 'Resuelto'): ?>
+    <?php if (!$staff && $t['estado'] === 'Resuelto'): ?>
     <div class="alert alert-success d-flex flex-wrap align-items-center gap-2 mt-3">
       <span>Soporte marcó este ticket como resuelto. ¿Quedó solucionado?</span>
       <form method="post" class="ms-auto"><?= csrf_field() ?><input type="hidden" name="accion" value="cerrar"><button class="btn btn-sm btn-success">Sí, cerrar ticket</button></form>
@@ -143,7 +157,7 @@ function duracion(string $desde, ?string $hasta): string
       <dl>
         <dt>Código</dt><dd><?= e($t['codigo']) ?></dd>
         <dt>Categoría</dt><dd><?= e($t['categoria']) ?></dd>
-        <dt>Solicitante</dt><dd><?= e($t['solicitante'] ?? '—') ?><?php if (is_admin() && $t['solicitante_email']): ?><br><small class="muted"><?= e($t['solicitante_email']) ?><?= $t['solicitante_tel'] ? ' · ' . e($t['solicitante_tel']) : '' ?></small><?php endif; ?></dd>
+        <dt>Solicitante</dt><dd><?= e($t['solicitante'] ?? '—') ?><?php if ($staff && $t['solicitante_email']): ?><br><small class="muted"><?= e($t['solicitante_email']) ?><?= $t['solicitante_tel'] ? ' · ' . e($t['solicitante_tel']) : '' ?></small><?php endif; ?></dd>
         <dt>Empresa</dt><dd><?= e($t['empresa'] ?? '—') ?></dd>
         <dt>Asignado a</dt><dd><?= e($t['asignado'] ?? 'Sin asignar') ?></dd>
         <dt>Creado</dt><dd><?= fdate($t['creado'], true) ?></dd>

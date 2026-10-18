@@ -3,6 +3,7 @@ require_once APP_DIR . '/computo.php';
 $title = 'Equipos de cómputo';
 [$w, $params, $act, $f] = computo_filtros($_GET);
 $f['estado'] = $f['estado'] ?? 'vigentes';
+$GLOBALS['masivo_mod'] = 'computo';
 require_once APP_DIR . '/masivo.php';
 masivo_procesar($w, $params);
 
@@ -48,8 +49,8 @@ $qs = array_filter(['p' => 'computo_lista'] + $f, fn($v) => $v !== null && $v !=
   <span class="ms-auto d-flex gap-2 pb-1 flex-wrap">
     <a class="btn btn-sm btn-outline-primary" href="index.php?<?= e(http_build_query($qs + ['exportar' => 'xlsx'])) ?>"><i class="bi bi-file-earmark-excel me-1"></i>Excel del filtro</a>
     <a class="btn btn-sm btn-outline-primary" href="index.php?<?= e(http_build_query($qs + ['exportar' => 'pdf'])) ?>"><i class="bi bi-file-earmark-pdf me-1"></i>PDF del filtro</a>
-    <?php if (is_admin()): ?><a class="btn btn-sm btn-outline-primary" href="<?= url('importar', ['inv' => 'computo']) ?>"><i class="bi bi-upload me-1"></i>Importar</a>
-    <a class="btn btn-sm btn-primary" href="<?= url('computo_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nuevo equipo</a><?php endif; ?>
+    <?php if (can('computo', 'administrar')): ?><a class="btn btn-sm btn-outline-primary" href="<?= url('importar', ['inv' => 'computo']) ?>"><i class="bi bi-upload me-1"></i>Importar</a><?php endif; ?>
+    <?php if (can('computo', 'crear')): ?><a class="btn btn-sm btn-primary" href="<?= url('computo_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nuevo equipo</a><?php endif; ?>
   </span>
 </div>
 
@@ -58,14 +59,14 @@ $qs = array_filter(['p' => 'computo_lista'] + $f, fn($v) => $v !== null && $v !=
 <div class="panel">
   <div class="panel-h"><h3><?= $total ?> equipo<?= $total === 1 ? '' : 's' ?></h3></div>
   <div class="tbl-wrap"><table class="tbl">
-    <thead><tr><?= masivo_check_all() ?><th>Usuario / cargo</th><?php if (!is_role('empresa')): ?><th>Propietario</th><?php endif; ?><th>Tipo</th><th>Marca / modelo</th><th>Procesador</th><th>RAM</th><th>DD</th><th>S.O.</th><th>Ofimática</th><th>Antivirus</th><th>Compra</th><th>Renovación</th></tr></thead>
+    <thead><tr><?= masivo_check_all() ?><th>Usuario / cargo</th><?php if (alcance() !== 'empresa'): ?><th>Propietario</th><?php endif; ?><th>Tipo</th><th>Marca / modelo</th><th>Procesador</th><th>RAM</th><th>DD</th><th>S.O.</th><th>Ofimática</th><th>Antivirus</th><th>Compra</th><th>Renovación</th></tr></thead>
     <tbody>
     <?php foreach ($rows as $r): ?>
       <tr>
         <?= masivo_check((int)$r['id']) ?>
         <td><a class="row-link" href="<?= url('equipo', ['id' => $r['id']]) ?>"><?= e(computo_usuario($r)) ?></a><?= $r['usuario_sistema'] ? ' <i class="bi bi-person-check text-success" title="Usuario de mesa de ayuda: ' . e($r['usuario_sistema']) . '"></i>' : '' ?><br><small class="muted"><?= e($r['cargo'] ?: '') ?><?= $r['cargo'] ? ' · ' : '' ?><?= e($r['codigo']) ?></small>
           <?= $r['tickets_abiertos'] ? '<br>' . badge($r['tickets_abiertos'] . ' ticket(s)', 'warning') : '' ?></td>
-        <?php if (!is_role('empresa')): ?><td><?= e($r['empresa'] ?? '—') ?></td><?php endif; ?>
+        <?php if (alcance() !== 'empresa'): ?><td><?= e($r['empresa'] ?? '—') ?></td><?php endif; ?>
         <td><?= e($r['tipo']) ?><?= $r['estado'] !== 'Activo' ? '<br>' . badge($r['estado']) : '' ?></td>
         <td><?= e(trim(($r['marca'] ?? '') . ' ' . ($r['modelo'] ?? '')) ?: '—') ?><?= $r['serial'] ? '<br><small class="muted">S/N ' . e($r['serial']) . '</small>' : '' ?></td>
         <td><?= e($r['procesador'] ?: '—') ?></td>

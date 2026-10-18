@@ -7,12 +7,13 @@ if (($tipo = get('tipo')) && in_array($tipo, OTROS_TIPOS, true)) { $where[] = 'e
 $estado = get('estado', 'vigentes');
 if ($estado === 'vigentes') $where[] = "eq.estado <> 'Dado de baja'";
 elseif (in_array($estado, EQUIPO_ESTADOS, true)) { $where[] = 'eq.estado = ?'; $params[] = $estado; }
-if (is_admin() && ($emp = (int)get('empresa', 0))) { $where[] = 'eq.empresa_id = ?'; $params[] = $emp; }
+if (alcance() === 'todos' && ($emp = (int)get('empresa', 0))) { $where[] = 'eq.empresa_id = ?'; $params[] = $emp; }
 if ($b = get('b')) {
     $where[] = '(eq.codigo LIKE ? OR eq.serial LIKE ? OR eq.marca LIKE ? OR eq.modelo LIKE ? OR eq.responsable LIKE ? OR eq.imei LIKE ? OR eq.linea LIKE ? OR eq.ubicacion LIKE ? OR u.nombre LIKE ?)';
     for ($i = 0; $i < 9; $i++) $params[] = "%$b%";
 }
 $w = implode(' AND ', $where);
+$GLOBALS['masivo_mod'] = 'inventario';
 require_once APP_DIR . '/masivo.php';
 masivo_procesar($w, $params);
 $sql = "SELECT eq.*, emp.nombre AS empresa, u.nombre AS usuario, u.email AS usuario_email,
@@ -23,16 +24,17 @@ $sql = "SELECT eq.*, emp.nombre AS empresa, u.nombre AS usuario, u.email AS usua
     WHERE $w ORDER BY emp.nombre, eq.tipo, eq.codigo";
 
 // Exportar a Excel (mismas columnas que la plantilla de importación)
-if (get('exportar') && is_admin()) {
+if (get('exportar') && can('inventario', 'administrar')) {
     require_once APP_DIR . '/lib/xlsx.php';
     $rows = [];
     foreach (all($sql, $params) as $r) {
         $rows[] = [$r['codigo'], $r['tipo'], $r['marca'], $r['modelo'], $r['serial'], $r['empresa'], $r['responsable'], $r['usuario_email'], $r['ubicacion'], $r['estado'],
-            $r['imei'], $r['linea'], $r['ip'], $r['fecha_compra'], $r['valor'] !== null ? (float)$r['valor'] : null, $r['garantia_hasta'], $r['especificaciones'], $r['notas']];
+            $r['imei'], $r['linea'], $r['ip'], $r['fecha_compra'], $r['valor'] !== null ? (float)$r['valor'] : null, $r['garantia_hasta'], $r['especificaciones'], $r['notas'],
+            $r['tipo_aire'], $r['btu'] !== null ? (int)$r['btu'] : null, $r['tecnologia'], $r['refrigerante'], $r['voltaje'], $r['serial_exterior']];
     }
     xlsx_download('otros_equipos_' . date('Ymd_Hi') . '.xlsx', [['name' => 'Equipos',
-        'headers' => ['Código', 'Tipo', 'Marca', 'Modelo', 'Serial', 'Propietario', 'Asignado a', 'Usuario mesa de ayuda', 'Ubicación', 'Estado', 'IMEI', 'Línea', 'IP', 'Fecha compra', 'Valor compra', 'Garantía hasta', 'Especificaciones', 'Notas'],
-        'rows' => $rows, 'widths' => [11, 15, 12, 18, 14, 24, 20, 26, 16, 13, 18, 14, 14, 13, 13, 14, 30, 30]]]);
+        'headers' => ['Código', 'Tipo', 'Marca', 'Modelo', 'Serial', 'Propietario', 'Asignado a', 'Usuario mesa de ayuda', 'Ubicación', 'Estado', 'IMEI', 'Línea', 'IP', 'Fecha compra', 'Valor compra', 'Garantía hasta', 'Especificaciones', 'Notas', 'Tipo de aire', 'Capacidad BTU', 'Tecnología', 'Refrigerante', 'Voltaje', 'Serial unidad exterior'],
+        'rows' => $rows, 'widths' => [11, 15, 12, 18, 14, 24, 20, 26, 16, 13, 18, 14, 14, 13, 13, 14, 30, 30, 22, 14, 12, 13, 12, 18]]]);
 }
 
 $per = 30;
@@ -46,6 +48,7 @@ $grupos = [
     'Celulares y tablets' => ['icon' => 'phone', 'tipos' => ['Celular', 'Tablet', 'Teléfono IP']],
     'Impresión' => ['icon' => 'printer', 'tipos' => ['Impresora', 'Escáner']],
     'Cámaras' => ['icon' => 'camera-video', 'tipos' => ['Cámara', 'DVR / NVR']],
+    'Aires acondicionados' => ['icon' => 'snow', 'tipos' => ['Aire acondicionado']],
     'Red, energía y otros' => ['icon' => 'router', 'tipos' => ['Router / Switch', 'Access point', 'UPS', 'Monitor', 'Otro']],
 ];
 $repar = (int)val("SELECT COUNT(*) FROM equipos eq WHERE $s2 AND eq.estado = 'En reparación' AND eq.tipo NOT IN ('" . implode("','", COMPUTO_TIPOS) . "')", $p2);
@@ -68,17 +71,17 @@ $qs = array_filter(['p' => 'inventario', 'tipo' => get('tipo'), 'estado' => $est
       <option value="todos" <?= $estado === 'todos' ? 'selected' : '' ?>>Todos</option>
       <?= options(EQUIPO_ESTADOS, $estado, false) ?>
     </select>
-    <?php if (is_admin()): ?><select class="form-select" name="empresa" data-autosubmit><option value="">Toda empresa</option><?= options(empresas_list(), get('empresa')) ?></select><?php endif; ?>
+    <?php if (alcance() === 'todos'): ?><select class="form-select" name="empresa" data-autosubmit><option value="">Toda empresa</option><?= options(empresas_list(), get('empresa')) ?></select><?php endif; ?>
     <div class="actions">
-      <?php if (is_admin()): ?>
+      <?php if (can('inventario', 'administrar')): ?>
         <a class="btn btn-outline-secondary" href="index.php?<?= e(http_build_query($qs + ['exportar' => 1])) ?>"><i class="bi bi-download me-1"></i>Excel</a>
         <a class="btn btn-outline-primary" href="<?= url('importar', ['inv' => 'otros']) ?>"><i class="bi bi-upload me-1"></i>Importar</a>
-        <a class="btn btn-primary" href="<?= url('equipo_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nuevo equipo</a>
       <?php endif; ?>
+      <?php if (can('inventario', 'crear')): ?><a class="btn btn-primary" href="<?= url('equipo_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nuevo equipo</a><?php endif; ?>
     </div>
   </form>
   <div class="tbl-wrap"><table class="tbl">
-    <thead><tr><?= masivo_check_all() ?><th>Código</th><th>Tipo</th><th>Marca / modelo</th><th>Serial</th><?php if (!is_role('empresa')): ?><th>Empresa</th><?php endif; ?><th>Asignado a</th><th>Ubicación</th><th>Estado</th><th class="c">Tickets</th></tr></thead>
+    <thead><tr><?= masivo_check_all() ?><th>Código</th><th>Tipo</th><th>Marca / modelo</th><th>Serial</th><?php if (alcance() !== 'empresa'): ?><th>Empresa</th><?php endif; ?><th>Asignado a</th><th>Ubicación</th><th>Estado</th><th class="c">Tickets</th></tr></thead>
     <tbody>
     <?php foreach ($rows as $r): ?>
       <tr>
@@ -87,14 +90,14 @@ $qs = array_filter(['p' => 'inventario', 'tipo' => get('tipo'), 'estado' => $est
         <td><?= e($r['tipo']) ?></td>
         <td><?= e(trim(($r['marca'] ?? '') . ' ' . ($r['modelo'] ?? '')) ?: '—') ?></td>
         <td class="muted"><?= e($r['serial'] ?: '—') ?></td>
-        <?php if (!is_role('empresa')): ?><td><?= e($r['empresa'] ?? '—') ?></td><?php endif; ?>
+        <?php if (alcance() !== 'empresa'): ?><td><?= e($r['empresa'] ?? '—') ?></td><?php endif; ?>
         <td><?= e($r['responsable'] ?: ($r['usuario'] ?: '—')) ?><?= $r['usuario'] ? ' <i class="bi bi-person-check text-success" title="Usuario de mesa de ayuda: ' . e($r['usuario']) . '"></i>' : '' ?></td>
         <td class="muted"><?= e($r['ubicacion'] ?: '—') ?></td>
         <td><?= badge($r['estado']) ?></td>
         <td class="c"><?= $r['tickets_abiertos'] ? badge((string)$r['tickets_abiertos'], 'warning') : '<span class="muted">0</span>' ?></td>
       </tr>
     <?php endforeach; ?>
-    <?php if (!$rows): ?><tr><td colspan="10" class="empty"><?= is_admin() ? 'No hay equipos con esos filtros.' : 'No hay equipos de este tipo asignados.' ?></td></tr><?php endif; ?>
+    <?php if (!$rows): ?><tr><td colspan="10" class="empty"><?= alcance() === 'todos' ? 'No hay equipos con esos filtros.' : 'No hay equipos de este tipo asignados.' ?></td></tr><?php endif; ?>
     </tbody>
   </table></div>
   <?= pagination($total, $per, $page, $qs) ?>

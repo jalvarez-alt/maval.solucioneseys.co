@@ -59,6 +59,12 @@ function imp_campos(string $inv): array
         'garantia_hasta' => ['Garantía hasta', ['garantia hasta', 'garantia', 'fin garantia'], 'Fecha (dd/mm/aaaa).'],
         'especificaciones' => ['Especificaciones', ['especificaciones', 'caracteristicas', 'detalle'], ''],
         'notas' => ['Notas', ['notas', 'observacion', 'observaciones'], ''],
+        'tipo_aire' => ['Tipo de aire', ['tipo de aire', 'tipo aire'], 'Solo aires acondicionados: ' . implode(', ', AIRE_TIPO_EQUIPO) . '.'],
+        'btu' => ['Capacidad BTU', ['capacidad btu', 'btu', 'btu h', 'capacidad'], 'Solo aires: p. ej. 12000, 18000, 24000.'],
+        'tecnologia' => ['Tecnología', ['tecnologia'], 'Solo aires: Inverter u On/Off.'],
+        'refrigerante' => ['Refrigerante', ['refrigerante', 'gas refrigerante'], 'Solo aires: R410A, R32, R22…'],
+        'voltaje' => ['Voltaje', ['voltaje', 'tension'], 'Solo aires: 110 V, 220 V…'],
+        'serial_exterior' => ['Serial unidad exterior', ['serial unidad exterior', 'serial exterior', 'serial condensadora'], 'Solo aires: serial de la condensadora (el «Serial» es el de la unidad interior).'],
     ];
 }
 
@@ -121,7 +127,7 @@ function imp_tipo($v): ?string
         'Monitor' => ['monitor', 'pantalla'], 'Celular' => ['celular', 'telefono celular', 'movil', 'smartphone'], 'Tablet' => ['tablet', 'tableta'],
         'Impresora' => ['impresora', 'multifuncional'], 'Escáner' => ['escaner', 'scanner'], 'Cámara' => ['camara', 'camara ip'], 'DVR / NVR' => ['dvr', 'nvr', 'dvr nvr', 'grabador'],
         'Router / Switch' => ['router', 'switch', 'router switch', 'firewall'], 'Access point' => ['access point', 'ap', 'punto de acceso'], 'UPS' => ['ups', 'regulador'],
-        'Teléfono IP' => ['telefono ip', 'telefono', 'voip'], 'Otro' => ['otro', 'otros'],
+        'Teléfono IP' => ['telefono ip', 'telefono', 'voip'], 'Aire acondicionado' => ['aire acondicionado', 'aire', 'aires', 'a a', 'mini split', 'minisplit', 'split', 'aire acond'], 'Otro' => ['otro', 'otros'],
     ]);
 }
 function imp_licencia($v): ?string
@@ -194,10 +200,11 @@ function imp_analizar(string $inv, array $filas, array $opts): array
 
         $err = []; $av = [];
         $d = [];
-        foreach (['responsable', 'cargo', 'marca', 'modelo', 'serial', 'procesador', 'ram', 'disco', 'ubicacion', 'ip', 'notas', 'imei', 'linea', 'especificaciones'] as $k) {
+        foreach (['responsable', 'cargo', 'marca', 'modelo', 'serial', 'procesador', 'ram', 'disco', 'ubicacion', 'ip', 'notas', 'imei', 'linea', 'especificaciones', 'tipo_aire', 'tecnologia', 'refrigerante', 'voltaje', 'serial_exterior'] as $k) {
             if (isset($campos[$k]) && $gs($k) !== '') $d[$k] = mb_substr($gs($k), 0, $k === 'notas' || $k === 'especificaciones' ? 5000 : 120);
         }
         if (isset($d['serial'])) $d['serial'] = mb_strtoupper($d['serial']);
+        if (isset($campos['btu']) && $gs('btu') !== '') $d['btu'] = (int)preg_replace('/\D/', '', $gs('btu')) ?: null;
         if ($codigo !== '') $d['codigo'] = mb_substr($codigo, 0, 40);
 
         // Tipo
@@ -377,10 +384,11 @@ function imp_plantilla(string $inv): void
         $widths = [12, 24, 18, 26, 28, 24, 14, 12, 18, 14, 22, 9, 13, 20, 13, 20, 13, 22, 13, 14, 40, 13, 13, 14, 12, 14, 16, 14, 30];
     } else {
         $ej = [
-            ['EJEMPLO-1', 'Impresora', 'Epson', 'L3250', 'X5ABC123', 'Nombre o NIT de la empresa', 'Contabilidad', '', 'Piso 2', 'Activo', '', '', '192.168.1.50', '2024-05-10', 890000, '2025-05-10', 'Tinta continua', ''],
-            ['EJEMPLO-2', 'Celular', 'Samsung', 'Galaxy A54', 'R58T90', 'Nombre o NIT de la empresa', 'Andrés Torres', 'atorres@empresa.com', '', 'Activo', '351234567890123', '3001234567', '', '2025-02-01', 1500000, '', '128 GB', 'Plan corporativo'],
+            ['EJEMPLO-1', 'Impresora', 'Epson', 'L3250', 'X5ABC123', 'Nombre o NIT de la empresa', 'Contabilidad', '', 'Piso 2', 'Activo', '', '', '192.168.1.50', '2024-05-10', 890000, '2025-05-10', 'Tinta continua', '', '', '', '', '', '', ''],
+            ['EJEMPLO-2', 'Celular', 'Samsung', 'Galaxy A54', 'R58T90', 'Nombre o NIT de la empresa', 'Andrés Torres', 'atorres@empresa.com', '', 'Activo', '351234567890123', '3001234567', '', '2025-02-01', 1500000, '', '128 GB', 'Plan corporativo', '', '', '', '', '', ''],
+            ['EJEMPLO-3', 'Aire acondicionado', 'LG', 'Dual Inverter', 'S3ABC456', 'Nombre o NIT de la empresa', 'Gerencia', '', 'Piso 3', 'Activo', '', '', '', '2024-03-01', 2800000, '2027-03-01', '', '', 'Split pared (mini split)', 18000, 'Inverter', 'R32', '220 V', 'EXT-998'],
         ];
-        $widths = [12, 16, 12, 16, 14, 24, 20, 26, 16, 14, 18, 14, 14, 13, 13, 14, 24, 24];
+        $widths = [12, 16, 12, 16, 14, 24, 20, 26, 16, 14, 18, 14, 14, 13, 13, 14, 24, 24, 22, 14, 12, 13, 12, 18];
     }
     $instr = [];
     foreach ($campos as $k => [$lbl, $als, $ayuda]) $instr[] = [$lbl, $ayuda, implode(', ', array_slice($als, 0, 4))];

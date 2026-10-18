@@ -1,5 +1,5 @@
 <?php
-require_role('admin');
+require_perm(get('inv') === 'otros' ? 'inventario' : 'computo', 'administrar');
 require_once APP_DIR . '/computo.php';
 require_once APP_DIR . '/importar.php';
 $inv = get('inv') === 'otros' ? 'otros' : 'computo';

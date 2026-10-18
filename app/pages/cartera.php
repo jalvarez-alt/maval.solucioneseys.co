@@ -1,5 +1,5 @@
 <?php
-require_role('admin');
+require_perm('cartera', 'ver');
 $title = 'Cartera';
 $propias = empresas_list('propia');
 $emp = (int)get('empresa', 0);
@@ -124,7 +124,7 @@ $anios = range((int)date('Y'), (int)date('Y') - 5);
     <input class="form-control grow" name="b" value="<?= e(get('b')) ?>" placeholder="N.º factura, cliente, NIT o concepto">
     <div class="actions">
       <a class="btn btn-outline-secondary" href="index.php?<?= e(http_build_query($qs + ['exportar' => 1])) ?>"><i class="bi bi-download me-1"></i>Excel</a>
-      <a class="btn btn-primary" href="<?= url('factura_form', array_filter(['empresa' => $emp ?: null])) ?>"><i class="bi bi-plus-lg me-1"></i>Registrar factura</a>
+      <?php if (can('cartera', 'crear')): ?><a class="btn btn-primary" href="<?= url('factura_form', array_filter(['empresa' => $emp ?: null])) ?>"><i class="bi bi-plus-lg me-1"></i>Registrar factura</a><?php endif; ?>
     </div>
   </form>
   <div class="tbl-wrap"><table class="tbl">

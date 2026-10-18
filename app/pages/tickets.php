@@ -8,9 +8,9 @@ if ($estado === 'activos') { $where[] = "t.estado IN ('Abierto','En proceso','En
 elseif (in_array($estado, TICKET_ESTADOS, true)) { $where[] = 't.estado = ?'; $params[] = $estado; }
 if (($pr = get('prioridad')) && in_array($pr, TICKET_PRIORIDADES, true)) { $where[] = 't.prioridad = ?'; $params[] = $pr; }
 if (($cat = get('categoria')) && in_array($cat, TICKET_CATEGORIAS, true)) { $where[] = 't.categoria = ?'; $params[] = $cat; }
-if (is_admin() && ($emp = (int)get('empresa', 0))) { $where[] = 't.empresa_id = ?'; $params[] = $emp; }
-if (is_admin() && get('asignado') === 'yo') { $where[] = 't.asignado_id = ?'; $params[] = (int)user()['id']; }
-if (is_admin() && get('asignado') === 'sin') { $where[] = 't.asignado_id IS NULL'; }
+if (alcance() === 'todos' && ($emp = (int)get('empresa', 0))) { $where[] = 't.empresa_id = ?'; $params[] = $emp; }
+if (alcance() === 'todos' && get('asignado') === 'yo') { $where[] = 't.asignado_id = ?'; $params[] = (int)user()['id']; }
+if (alcance() === 'todos' && get('asignado') === 'sin') { $where[] = 't.asignado_id IS NULL'; }
 if ($b = get('b')) { $where[] = '(t.asunto LIKE ? OR t.codigo LIKE ? OR t.descripcion LIKE ?)'; array_push($params, "%$b%", "%$b%", "%$b%"); }
 $w = implode(' AND ', $where);
 
@@ -51,14 +51,14 @@ $qs = array_filter(['p' => 'tickets', 'estado' => $estado, 'prioridad' => get('p
     </select>
     <select class="form-select" name="prioridad" data-autosubmit><option value="">Toda prioridad</option><?= options(TICKET_PRIORIDADES, get('prioridad'), false) ?></select>
     <select class="form-select" name="categoria" data-autosubmit><option value="">Toda categoría</option><?= options(TICKET_CATEGORIAS, get('categoria'), false) ?></select>
-    <?php if (is_admin()): ?>
+    <?php if (alcance() === 'todos'): ?>
     <select class="form-select" name="empresa" data-autosubmit><option value="">Toda empresa</option><?= options(empresas_list(), get('empresa')) ?></select>
     <select class="form-select" name="asignado" data-autosubmit><option value="">Cualquier técnico</option><?= options(['yo' => 'Asignados a mí', 'sin' => 'Sin asignar'], get('asignado')) ?></select>
     <?php endif; ?>
-    <div class="actions"><a class="btn btn-primary" href="<?= url('ticket_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nuevo ticket</a></div>
+    <div class="actions"><?php if (can('tickets', 'crear')): ?><a class="btn btn-primary" href="<?= url('ticket_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nuevo ticket</a><?php endif; ?></div>
   </form>
   <div class="tbl-wrap"><table class="tbl">
-    <thead><tr><th>Código</th><th>Asunto</th><th>Categoría</th><th>Prioridad</th><th>Estado</th><?php if (!is_role('usuario')): ?><th>Solicitante</th><?php endif; ?><?php if (is_admin()): ?><th>Empresa</th><th>Asignado</th><?php endif; ?><th>Equipo</th><th>Creado</th></tr></thead>
+    <thead><tr><th>Código</th><th>Asunto</th><th>Categoría</th><th>Prioridad</th><th>Estado</th><?php if (alcance() !== 'propios'): ?><th>Solicitante</th><?php endif; ?><?php if (alcance() === 'todos'): ?><th>Empresa</th><th>Asignado</th><?php endif; ?><th>Equipo</th><th>Creado</th></tr></thead>
     <tbody>
     <?php foreach ($rows as $r): ?>
       <tr>
@@ -67,8 +67,8 @@ $qs = array_filter(['p' => 'tickets', 'estado' => $estado, 'prioridad' => get('p
         <td class="muted"><?= e($r['categoria']) ?></td>
         <td><?= badge($r['prioridad']) ?></td>
         <td><?= badge($r['estado']) ?></td>
-        <?php if (!is_role('usuario')): ?><td><?= e($r['solicitante'] ?? '—') ?></td><?php endif; ?>
-        <?php if (is_admin()): ?><td><?= e($r['empresa'] ?? '—') ?></td><td><?= $r['asignado'] ? e($r['asignado']) : '<span class="muted">Sin asignar</span>' ?></td><?php endif; ?>
+        <?php if (alcance() !== 'propios'): ?><td><?= e($r['solicitante'] ?? '—') ?></td><?php endif; ?>
+        <?php if (alcance() === 'todos'): ?><td><?= e($r['empresa'] ?? '—') ?></td><td><?= $r['asignado'] ? e($r['asignado']) : '<span class="muted">Sin asignar</span>' ?></td><?php endif; ?>
         <td class="nowrap"><?= $r['equipo_codigo'] ? '<a href="' . url('equipo', ['id' => $r['equipo_id']]) . '">' . e($r['equipo_codigo']) . '</a>' : '<span class="muted">—</span>' ?></td>
         <td class="nowrap muted"><?= fdate($r['creado'], true) ?></td>
       </tr>

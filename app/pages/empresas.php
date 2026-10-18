@@ -1,5 +1,5 @@
 <?php
-require_role('admin');
+require_perm('empresas', 'ver');
 $title = 'Empresas';
 $tipo = get('tipo', '');
 $where = '1=1';
@@ -16,14 +16,14 @@ $rows = all("SELECT e.*,
     <a class="<?= $tipo === '' ? 'on' : '' ?>" href="<?= url('empresas') ?>">Todas</a>
     <a class="<?= $tipo === 'propia' ? 'on' : '' ?>" href="<?= url('empresas', ['tipo' => 'propia']) ?>">Propias (cartera)</a>
     <a class="<?= $tipo === 'cliente' ? 'on' : '' ?>" href="<?= url('empresas', ['tipo' => 'cliente']) ?>">Clientes</a>
-    <span class="ms-auto"><a class="btn btn-primary btn-sm" href="<?= url('empresa_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nueva empresa</a></span>
+    <?php if (can('empresas', 'crear')): ?><span class="ms-auto"><a class="btn btn-primary btn-sm" href="<?= url('empresa_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nueva empresa</a></span><?php endif; ?>
   </div>
   <div class="tbl-wrap"><table class="tbl">
     <thead><tr><th>Empresa</th><th>NIT</th><th>Tipo</th><th>Contacto</th><th>Teléfono</th><th class="c">Usuarios</th><th class="c">Equipos</th><th class="c">Tickets abiertos</th><th>Estado</th></tr></thead>
     <tbody>
     <?php foreach ($rows as $r): ?>
       <tr>
-        <td><a class="row-link" href="<?= url('empresa_form', ['id' => $r['id']]) ?>"><?= e($r['nombre']) ?></a></td>
+        <td><?= can('empresas', 'editar') ? '<a class="row-link" href="' . url('empresa_form', ['id' => $r['id']]) . '">' . e($r['nombre']) . '</a>' : e($r['nombre']) ?></td>
         <td><?= e($r['nit']) ?></td>
         <td><?= $r['tipo'] === 'propia' ? badge('Propia', 'primary') : badge('Cliente', 'info') ?></td>
         <td><?= e($r['contacto']) ?></td>

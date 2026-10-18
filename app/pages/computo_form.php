@@ -1,5 +1,5 @@
 <?php
-require_role('admin');
+require_perm('computo', get('id') ? 'editar' : 'crear');
 require_once APP_DIR . '/computo.php';
 $id = (int)get('id', 0);
 $r = $id ? one('SELECT * FROM equipos WHERE id = ?', [$id]) : null;

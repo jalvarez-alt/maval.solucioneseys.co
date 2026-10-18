@@ -57,8 +57,8 @@ $pct = fn($v, $t) => $t ? round($v / $t * 100) : 0;
   <span class="ms-auto d-flex gap-2 pb-1 flex-wrap">
     <a class="btn btn-sm btn-outline-primary" href="<?= e($link(['exportar' => 'xlsx'])) ?>"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
     <a class="btn btn-sm btn-outline-primary" href="<?= e($link(['exportar' => 'pdf'])) ?>"><i class="bi bi-file-earmark-pdf me-1"></i>Informe PDF</a>
-    <?php if (is_admin()): ?><a class="btn btn-sm btn-outline-primary" href="<?= url('importar', ['inv' => 'computo']) ?>"><i class="bi bi-upload me-1"></i>Importar</a>
-    <a class="btn btn-sm btn-primary" href="<?= url('computo_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nuevo equipo</a><?php endif; ?>
+    <?php if (can('computo', 'administrar')): ?><a class="btn btn-sm btn-outline-primary" href="<?= url('importar', ['inv' => 'computo']) ?>"><i class="bi bi-upload me-1"></i>Importar</a><?php endif; ?>
+    <?php if (can('computo', 'crear')): ?><a class="btn btn-sm btn-primary" href="<?= url('computo_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nuevo equipo</a><?php endif; ?>
   </span>
 </div>
 
@@ -66,7 +66,7 @@ $pct = fn($v, $t) => $t ? round($v / $t * 100) : 0;
 
 <?php if (!$n): ?>
   <div class="panel empty-state"><i class="bi bi-pc-display"></i><h2><?= $act ? 'Ningún equipo cumple los filtros.' : 'Aún no hay equipos de cómputo registrados.' ?></h2>
-    <?php if (is_admin() && !$act): ?><div class="d-flex gap-2 justify-content-center mt-2"><a class="btn btn-primary" href="<?= url('computo_form') ?>">Registrar el primero</a><a class="btn btn-outline-primary" href="<?= url('importar', ['inv' => 'computo']) ?>"><i class="bi bi-upload me-1"></i>Importar desde Excel</a></div><?php endif; ?></div>
+    <?php if (can('computo', 'crear') && !$act): ?><div class="d-flex gap-2 justify-content-center mt-2"><a class="btn btn-primary" href="<?= url('computo_form') ?>">Registrar el primero</a><a class="btn btn-outline-primary" href="<?= url('importar', ['inv' => 'computo']) ?>"><i class="bi bi-upload me-1"></i>Importar desde Excel</a></div><?php endif; ?></div>
 <?php else: ?>
 
 <div class="kpis">
@@ -120,7 +120,7 @@ $pct = fn($v, $t) => $t ? round($v / $t * 100) : 0;
 <div class="row g-3 mb-3">
   <div class="col-lg-4"><div class="panel h-100 mb-0"><div class="panel-h"><h3>Por tipo</h3></div><div class="chart-box sm"><canvas id="chTipo" role="img" aria-label="Equipos por tipo"></canvas></div></div></div>
   <div class="col-lg-4"><div class="panel h-100 mb-0"><div class="panel-h"><h3>Sistema operativo</h3></div><div class="chart-box sm"><canvas id="chSo" role="img" aria-label="Equipos por sistema operativo"></canvas></div></div></div>
-  <div class="col-lg-4"><div class="panel h-100 mb-0"><div class="panel-h"><h3><?= is_admin() && count($porEmpresa) > 1 ? 'Por propietario' : 'Por marca' ?></h3></div><div class="chart-box sm"><canvas id="chProp" role="img" aria-label="Distribución"></canvas></div></div></div>
+  <div class="col-lg-4"><div class="panel h-100 mb-0"><div class="panel-h"><h3><?= alcance() === 'todos' && count($porEmpresa) > 1 ? 'Por propietario' : 'Por marca' ?></h3></div><div class="chart-box sm"><canvas id="chProp" role="img" aria-label="Distribución"></canvas></div></div></div>
 </div>
 
 <div class="panel">
@@ -149,7 +149,7 @@ $pct = fn($v, $t) => $t ? round($v / $t * 100) : 0;
 </div>
 
 <?php
-$third = is_admin() && count($porEmpresa) > 1 ? ['data' => array_slice($porEmpresa, 0, 8, true), 'key' => 'empresa']
+$third = alcance() === 'todos' && count($porEmpresa) > 1 ? ['data' => array_slice($porEmpresa, 0, 8, true), 'key' => 'empresa']
                                                 : ['data' => array_slice($porMarca, 0, 8, true), 'key' => 'marca'];
 $empIds = array_flip(empresas_list());
 $chartData = [

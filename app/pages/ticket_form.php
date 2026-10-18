@@ -2,13 +2,15 @@
 $u = user();
 $id = (int)get('id', 0);
 $r = null;
+if (!$id) require_perm('tickets', 'crear');
 if ($id) {
-    require_role('admin'); // solo el administrador edita los datos del ticket
+    require_perm('tickets', 'editar'); // editar los datos de un ticket
     $r = one('SELECT * FROM tickets WHERE id = ?', [$id]);
     if (!$r) not_found();
 }
 $title = $r ? 'Editar ticket ' . $r['codigo'] : 'Nuevo ticket';
 $errors = [];
+$staff = can('tickets', 'administrar'); // puede elegir solicitante, empresa y técnico
 
 // Equipos que el usuario puede vincular
 [$es, $ep] = equipo_scope('eq');
@@ -31,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!in_array($d['prioridad'], TICKET_PRIORIDADES, true)) $d['prioridad'] = 'Media';
     if ($d['equipo_id'] && !in_array($d['equipo_id'], $equipoIds, true)) $errors[] = 'El equipo seleccionado no es válido.';
 
-    if (is_admin()) {
+    if ($staff) {
         $d['empresa_id'] = post('empresa_id') ? (int)post('empresa_id') : null;
         $d['solicitante_id'] = post('solicitante_id') ? (int)post('solicitante_id') : ($r['solicitante_id'] ?? $u['id']);
         $d['asignado_id'] = post('asignado_id') ? (int)post('asignado_id') : null;
@@ -49,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ((int)$r['asignado_id'] !== (int)$d['asignado_id']) {
                 $nom = $d['asignado_id'] ? val('SELECT nombre FROM usuarios WHERE id = ?', [$d['asignado_id']]) : 'nadie';
                 insert('ticket_comentarios', ['ticket_id' => $id, 'usuario_id' => $u['id'], 'mensaje' => 'Ticket asignado a ' . $nom . '.', 'interno' => 0, 'creado' => now()]);
+                if ($d['asignado_id']) notificar_ticket($id, 'asignado');
             }
             save_uploads('adjuntos', 'ticket', $id);
             flash('Ticket actualizado.');
@@ -61,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($d['equipo_id']) {
                 insert('equipo_movimientos', ['equipo_id' => $d['equipo_id'], 'usuario_id' => $u['id'], 'descripcion' => 'Se reportó el ticket TK-' . str_pad((string)$id, 5, '0', STR_PAD_LEFT) . ': ' . mb_substr($d['asunto'], 0, 200), 'fecha' => now()]);
             }
+            notificar_ticket($id, 'creado');
             flash('Ticket creado. Le daremos respuesta lo antes posible.');
         }
         redirect(url('ticket', ['id' => $id]));
@@ -75,6 +79,7 @@ if (!$r['categoria'] && $r['equipo_id']) {
         'Celular', 'Teléfono IP' => 'Telefonía / celular',
         'Cámara', 'DVR / NVR' => 'Cámaras y seguridad',
         'Router / Switch', 'Access point' => 'Red e internet',
+        'Aire acondicionado' => 'Climatización',
         default => 'Hardware', // computadores y demás
     };
 }
@@ -90,11 +95,11 @@ if (!$r['categoria'] && $r['equipo_id']) {
       <div class="full"><label class="form-label">Equipo relacionado</label>
         <select class="form-select" name="equipo_id"><option value="">— Ninguno / no aplica —</option>
           <?php foreach ($equipos as $q): ?>
-            <option value="<?= (int)$q['id'] ?>" <?= (int)$r['equipo_id'] === (int)$q['id'] ? 'selected' : '' ?>><?= e($q['codigo'] . ' · ' . $q['tipo'] . ' ' . trim(($q['marca'] ?? '') . ' ' . ($q['modelo'] ?? '')) . ($q['empresa'] && !is_role('empresa') ? ' — ' . $q['empresa'] : '')) ?></option>
+            <option value="<?= (int)$q['id'] ?>" <?= (int)$r['equipo_id'] === (int)$q['id'] ? 'selected' : '' ?>><?= e($q['codigo'] . ' · ' . $q['tipo'] . ' ' . trim(($q['marca'] ?? '') . ' ' . ($q['modelo'] ?? '')) . ($q['empresa'] && alcance() !== 'empresa' ? ' — ' . $q['empresa'] : '')) ?></option>
           <?php endforeach; ?>
         </select>
       </div>
-      <?php if (is_admin()):
+      <?php if ($staff):
         $usuarios = all('SELECT id, nombre FROM usuarios WHERE activo = 1 ORDER BY nombre');
         $admins = all("SELECT id, nombre FROM usuarios WHERE activo = 1 AND rol = 'admin' ORDER BY nombre"); ?>
       <div><label class="form-label">Solicitante</label><select class="form-select" name="solicitante_id"><option value="">(yo)</option><?= options(array_column($usuarios, 'nombre', 'id'), $r['solicitante_id']) ?></select></div>

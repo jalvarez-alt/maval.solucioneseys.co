@@ -5,9 +5,12 @@
  */
 
 /** Procesa el envío de la barra de selección. Debe llamarse con la condición de filtro de la página. */
+/** Módulo (computo o inventario) cuyo permiso «Administrar» habilita las acciones masivas. */
+function masivo_mod(): string { return $GLOBALS['masivo_mod'] ?? 'inventario'; }
+
 function masivo_procesar(string $w, array $params): void
 {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || post('accion') !== 'masivo' || !is_admin()) return;
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || post('accion') !== 'masivo' || !can(masivo_mod(), 'administrar')) return;
     $volver = 'index.php?' . http_build_query(array_diff_key($_GET, ['pg' => 1]));
     $base = "FROM equipos eq LEFT JOIN usuarios u ON u.id = eq.usuario_id WHERE $w";
 
@@ -26,6 +29,7 @@ function masivo_procesar(string $w, array $params): void
     $pdo = db();
     $op = post('op');
 
+    if ($op === 'eliminar' && !can(masivo_mod(), 'eliminar')) { flash('No tiene permiso para eliminar equipos.', 'warning'); redirect($volver); }
     if ($op === 'eliminar') {
         if (mb_strtoupper(trim((string)post('confirmacion', ''))) !== 'ELIMINAR') { flash('Eliminación cancelada: debe escribir ELIMINAR para confirmar.', 'warning'); redirect($volver); }
         $pdo->beginTransaction();
@@ -73,7 +77,7 @@ function masivo_procesar(string $w, array $params): void
 /** Barra de acciones (aparece al marcar equipos). $total = equipos que cumplen el filtro. */
 function masivo_barra(int $total): string
 {
-    if (!is_admin()) return '';
+    if (!can(masivo_mod(), 'administrar')) return '';
     $usuarios = all("SELECT u.id, u.nombre, u.email, e.nombre AS empresa FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.activo = 1 ORDER BY u.nombre");
     $opts = '<option value="">Seleccione el usuario…</option><option value="ninguno">— Quitar usuario asignado —</option>';
     foreach ($usuarios as $us) $opts .= '<option value="' . (int)$us['id'] . '">' . e($us['nombre'] . ' · ' . $us['email'] . ($us['empresa'] ? ' · ' . $us['empresa'] : '')) . '</option>';
@@ -88,17 +92,17 @@ function masivo_barra(int $total): string
         . '<span class="sep"></span>'
         . '<label class="visually-hidden" for="bulk-est">Nuevo estado</label><select class="form-select form-select-sm" id="bulk-est" name="estado"><option value="">Cambiar estado…</option>' . options(EQUIPO_ESTADOS, '', false) . '</select>'
         . '<button class="btn btn-sm btn-outline-primary" name="op" value="estado">Aplicar</button>'
-        . '<span class="sep"></span>'
-        . '<button class="btn btn-sm btn-danger" name="op" value="eliminar" data-bulk-delete><i class="bi bi-trash me-1"></i>Eliminar</button>'
+        . (can(masivo_mod(), 'eliminar') ? '<span class="sep"></span>'
+        . '<button class="btn btn-sm btn-danger" name="op" value="eliminar" data-bulk-delete><i class="bi bi-trash me-1"></i>Eliminar</button>' : '')
         . '</div></form>';
 }
 
 /** Celda con la casilla de selección de una fila. */
 function masivo_check(int $id): string
 {
-    return is_admin() ? '<td class="c sel-col"><input class="form-check-input sel" type="checkbox" name="ids[]" value="' . $id . '" form="masivo" aria-label="Seleccionar"></td>' : '';
+    return can(masivo_mod(), 'administrar') ? '<td class="c sel-col"><input class="form-check-input sel" type="checkbox" name="ids[]" value="' . $id . '" form="masivo" aria-label="Seleccionar"></td>' : '';
 }
 function masivo_check_all(): string
 {
-    return is_admin() ? '<th class="c sel-col"><input class="form-check-input sel-all" type="checkbox" aria-label="Seleccionar todos los de esta página"></th>' : '';
+    return can(masivo_mod(), 'administrar') ? '<th class="c sel-col"><input class="form-check-input sel-all" type="checkbox" aria-label="Seleccionar todos los de esta página"></th>' : '';
 }

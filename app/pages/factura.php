@@ -1,5 +1,5 @@
 <?php
-require_role('admin');
+require_perm('cartera', 'ver');
 $id = (int)get('id', 0);
 $f = one('SELECT f.*, e.nombre AS empresa, e.nit AS empresa_nit, u.nombre AS creador FROM facturas f JOIN empresas e ON e.id = f.empresa_id LEFT JOIN usuarios u ON u.id = f.creado_por WHERE f.id = ?', [$id]);
 if (!$f) not_found();
@@ -9,6 +9,7 @@ $title = 'Factura ' . $f['numero'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acc = post('accion');
+    require_perm('cartera', ['pago' => 'crear', 'borrar_pago' => 'eliminar', 'anular' => 'aprobar', 'eliminar' => 'eliminar'][$acc] ?? 'editar');
     if ($acc === 'pago') {
         $v = parse_money(post('valor', '0'));
         $fecha = valid_date(post('fecha'));
@@ -48,9 +49,9 @@ $dv = (int)floor((strtotime(today()) - strtotime($f['fecha_vencimiento'])) / 864
   <h2 class="h5 m-0 ms-1"><?= e($f['cliente_nombre']) ?></h2>
   <?= badge($est) ?>
   <div class="ms-auto d-flex gap-2">
-    <a class="btn btn-sm btn-outline-primary" href="<?= url('factura_form', ['id' => $id]) ?>"><i class="bi bi-pencil"></i> Editar</a>
-    <form method="post" data-confirm="<?= $f['anulada'] ? '¿Reactivar la factura?' : '¿Anular la factura? Dejará de contar en la cartera.' ?>"><?= csrf_field() ?><input type="hidden" name="accion" value="anular"><button class="btn btn-sm btn-outline-secondary"><?= $f['anulada'] ? 'Reactivar' : 'Anular' ?></button></form>
-    <?php if (!$f['pagado']): ?><form method="post" data-confirm="¿Eliminar definitivamente la factura?"><?= csrf_field() ?><input type="hidden" name="accion" value="eliminar"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form><?php endif; ?>
+    <?php if (can('cartera', 'editar')): ?><a class="btn btn-sm btn-outline-primary" href="<?= url('factura_form', ['id' => $id]) ?>"><i class="bi bi-pencil"></i> Editar</a><?php endif; ?>
+    <?php if (can('cartera', 'aprobar')): ?><form method="post" data-confirm="<?= $f['anulada'] ? '¿Reactivar la factura?' : '¿Anular la factura? Dejará de contar en la cartera.' ?>"><?= csrf_field() ?><input type="hidden" name="accion" value="anular"><button class="btn btn-sm btn-outline-secondary"><?= $f['anulada'] ? 'Reactivar' : 'Anular' ?></button></form><?php endif; ?>
+    <?php if (!$f['pagado'] && can('cartera', 'eliminar')): ?><form method="post" data-confirm="¿Eliminar definitivamente la factura?"><?= csrf_field() ?><input type="hidden" name="accion" value="eliminar"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form><?php endif; ?>
   </div>
 </div>
 
@@ -69,13 +70,13 @@ $dv = (int)floor((strtotime(today()) - strtotime($f['fecha_vencimiento'])) / 864
         <tbody>
         <?php foreach ($pagos as $p): ?>
           <tr><td class="nowrap"><?= fdate($p['fecha']) ?></td><td><?= e($p['metodo'] ?: '—') ?></td><td><?= e($p['referencia'] ?: '—') ?></td><td class="muted"><?= e($p['notas']) ?></td><td class="r"><?= money($p['valor']) ?></td>
-            <td class="r"><form method="post" data-confirm="¿Eliminar este pago?"><?= csrf_field() ?><input type="hidden" name="accion" value="borrar_pago"><input type="hidden" name="pago" value="<?= (int)$p['id'] ?>"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form></td></tr>
+            <td class="r"><?php if (can('cartera', 'eliminar')): ?><form method="post" data-confirm="¿Eliminar este pago?"><?= csrf_field() ?><input type="hidden" name="accion" value="borrar_pago"><input type="hidden" name="pago" value="<?= (int)$p['id'] ?>"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form><?php endif; ?></td></tr>
         <?php endforeach; ?>
         <?php if (!$pagos): ?><tr><td colspan="6" class="empty">Aún no hay pagos registrados.</td></tr><?php endif; ?>
         </tbody>
       </table></div>
     </div>
-    <?php if (!$f['anulada'] && $saldo > 0.5): ?>
+    <?php if (!$f['anulada'] && $saldo > 0.5 && can('cartera', 'crear')): ?>
     <div class="panel" id="pago">
       <div class="panel-h"><h3>Registrar pago o abono</h3></div>
       <form method="post">

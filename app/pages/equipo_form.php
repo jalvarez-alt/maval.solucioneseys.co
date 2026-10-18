@@ -1,5 +1,5 @@
 <?php
-require_role('admin');
+require_perm('inventario', get('id') ? 'editar' : 'crear');
 $id = (int)get('id', 0);
 $r = $id ? one('SELECT * FROM equipos WHERE id = ?', [$id]) : null;
 if ($id && !$r) not_found();
@@ -27,6 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'valor' => post('valor') !== null ? parse_money(post('valor')) : null,
         'garantia_hasta' => valid_date(post('garantia_hasta')),
         'imei' => post('imei'), 'linea' => post('linea'), 'ip' => post('ip'),
+        'tipo_aire' => post('tipo_aire'), 'btu' => post('btu') ? (int)preg_replace('/\D/', '', (string)post('btu')) : null, 'tecnologia' => post('tecnologia'),
+        'refrigerante' => post('refrigerante'), 'voltaje' => post('voltaje'), 'serial_exterior' => post('serial_exterior'),
         'especificaciones' => post('especificaciones'), 'notas' => post('notas'),
     ];
     if (!in_array($d['tipo'], OTROS_TIPOS, true)) $errors[] = 'Seleccione el tipo de equipo (los computadores se registran en Inventario de cómputo).';
@@ -82,6 +84,17 @@ $tiposRed = 'Impresora,Cámara,DVR / NVR,Router / Switch,Access point,Teléfono 
       <div data-show-when="tipo:<?= e($tiposCel) ?>"><label class="form-label">IMEI</label><input class="form-control" name="imei" value="<?= e($r['imei']) ?>"></div>
       <div data-show-when="tipo:<?= e($tiposCel) ?>"><label class="form-label">Línea / número</label><input class="form-control" name="linea" value="<?= e($r['linea']) ?>"></div>
       <div data-show-when="tipo:<?= e($tiposRed) ?>"><label class="form-label">Dirección IP</label><input class="form-control" name="ip" value="<?= e($r['ip']) ?>"></div>
+    </div>
+    <div data-show-when="tipo:Aire acondicionado">
+      <h6 class="sec">Datos del aire acondicionado</h6>
+      <div class="form-grid">
+        <div><label class="form-label">Tipo de aire</label><select class="form-select" name="tipo_aire"><option value="">— Seleccione —</option><?= options(AIRE_TIPO_EQUIPO, $r['tipo_aire'] ?? '', false) ?></select></div>
+        <div><label class="form-label">Capacidad (BTU/h)</label><input class="form-control" name="btu" inputmode="numeric" value="<?= e($r['btu'] ?? '') ?>" placeholder="Ej.: 12000, 18000, 24000"><div class="form-text">12.000 BTU/h ≈ 1 tonelada de refrigeración.</div></div>
+        <div><label class="form-label">Tecnología</label><select class="form-select" name="tecnologia"><option value="">— Seleccione —</option><?= options(AIRE_TECNOLOGIA, $r['tecnologia'] ?? '', false) ?></select></div>
+        <div><label class="form-label">Refrigerante</label><select class="form-select" name="refrigerante"><option value="">— Seleccione —</option><?= options(AIRE_REFRIGERANTE, $r['refrigerante'] ?? '', false) ?></select></div>
+        <div><label class="form-label">Voltaje</label><select class="form-select" name="voltaje"><option value="">— Seleccione —</option><?= options(AIRE_VOLTAJE, $r['voltaje'] ?? '', false) ?></select></div>
+        <div><label class="form-label">Serial unidad exterior (condensadora)</label><input class="form-control" name="serial_exterior" value="<?= e($r['serial_exterior'] ?? '') ?>"><div class="form-text">El campo «Serial» de arriba corresponde a la unidad interior (evaporadora).</div></div>
+      </div>
     </div>
     <h6 class="sec">Asignación</h6>
     <div class="form-grid">

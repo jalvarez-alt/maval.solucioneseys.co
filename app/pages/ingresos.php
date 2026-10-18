@@ -1,5 +1,5 @@
 <?php
-require_role('admin');
+require_perm('ingresos', 'ver');
 $anio = (int)get('anio', date('Y'));
 $title = 'Entradas de dinero ' . $anio;
 $propias = empresas_list('propia');

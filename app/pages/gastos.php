@@ -1,8 +1,9 @@
 <?php
-require_role('admin');
+require_perm('gastos', 'ver');
 $title = 'Gastos';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('accion') === 'eliminar') {
+    require_perm('gastos', 'eliminar');
     $gid = (int)post('id');
     foreach (adjuntos('gasto', $gid) as $a) @unlink(UPLOAD_DIR . '/' . $a['archivo']);
     q("DELETE FROM adjuntos WHERE entidad = 'gasto' AND entidad_id = ?", [$gid]);
@@ -71,7 +72,7 @@ $periodo = $mes === 'todos' ? 'Año ' . $anio : MESES[(int)$mes] . ' ' . $anio;
     <input class="form-control grow" name="b" value="<?= e(get('b')) ?>" placeholder="Concepto, proveedor, referencia">
     <div class="actions">
       <a class="btn btn-outline-secondary" href="index.php?<?= e(http_build_query($qs + ['exportar' => 1])) ?>"><i class="bi bi-download me-1"></i>Excel</a>
-      <a class="btn btn-primary" href="<?= url('gasto_form') ?>"><i class="bi bi-plus-lg me-1"></i>Registrar gasto</a>
+      <?php if (can('gastos', 'crear')): ?><a class="btn btn-primary" href="<?= url('gasto_form') ?>"><i class="bi bi-plus-lg me-1"></i>Registrar gasto</a><?php endif; ?>
     </div>
   </form>
   <div class="tbl-wrap"><table class="tbl">
@@ -81,14 +82,14 @@ $periodo = $mes === 'todos' ? 'Año ' . $anio : MESES[(int)$mes] . ' ' . $anio;
       <tr>
         <td class="nowrap"><?= fdate($r['fecha']) ?></td>
         <td><?= e($r['categoria']) ?></td>
-        <td><a class="row-link fw-normal" href="<?= url('gasto_form', ['id' => $r['id']]) ?>"><?= e($r['concepto']) ?></a><?= $r['n_adj'] ? ' <i class="bi bi-paperclip muted" title="Tiene soporte"></i>' : '' ?><?= $r['referencia'] ? '<br><small class="muted">Ref. ' . e($r['referencia']) . '</small>' : '' ?></td>
+        <td><?= can('gastos', 'editar') ? '<a class="row-link fw-normal" href="' . url('gasto_form', ['id' => $r['id']]) . '">' . e($r['concepto']) . '</a>' : e($r['concepto']) ?><?= $r['n_adj'] ? ' <i class="bi bi-paperclip muted" title="Tiene soporte"></i>' : '' ?><?= $r['referencia'] ? '<br><small class="muted">Ref. ' . e($r['referencia']) . '</small>' : '' ?></td>
         <td><?= e($r['proveedor'] ?: '—') ?></td>
         <td class="muted"><?= e($r['empresa'] ?? '—') ?></td>
         <td class="muted"><?= e($r['metodo_pago'] ?: '—') ?></td>
         <td class="r"><?= money($r['valor']) ?></td>
         <td class="r nowrap">
-          <a class="btn btn-sm btn-outline-secondary" href="<?= url('gasto_form', ['id' => $r['id']]) ?>"><i class="bi bi-pencil"></i></a>
-          <form method="post" class="d-inline" data-confirm="¿Eliminar este gasto?"><?= csrf_field() ?><input type="hidden" name="accion" value="eliminar"><input type="hidden" name="id" value="<?= (int)$r['id'] ?>"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form>
+          <?php if (can('gastos', 'editar')): ?><a class="btn btn-sm btn-outline-secondary" href="<?= url('gasto_form', ['id' => $r['id']]) ?>"><i class="bi bi-pencil"></i></a><?php endif; ?>
+          <?php if (can('gastos', 'eliminar')): ?><form method="post" class="d-inline" data-confirm="¿Eliminar este gasto?"><?= csrf_field() ?><input type="hidden" name="accion" value="eliminar"><input type="hidden" name="id" value="<?= (int)$r['id'] ?>"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form><?php endif; ?>
         </td>
       </tr>
     <?php endforeach; ?>
