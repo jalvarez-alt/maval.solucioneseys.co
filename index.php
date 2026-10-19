@@ -9,6 +9,7 @@ $pages = [
     'tickets', 'ticket', 'ticket_form',
     'inventario', 'equipo', 'equipo_form', 'computo', 'computo_lista', 'computo_form', 'importar',
     'mantenimiento', 'mantenimiento_form',
+    'cotizaciones', 'cotizacion', 'cotizacion_form', 'cotizacion_config',
     'usuarios', 'usuario_form', 'roles', 'rol_form', 'empresas', 'empresa_form', 'config_correo',
     'gastos', 'gasto_form', 'estadisticas', 'presupuesto', 'categorias',
     'cartera', 'factura', 'factura_form', 'ingresos',
@@ -20,6 +21,7 @@ if (!in_array($p, $pages, true)) $p = 'inicio';
 $modulo = [
     'tickets' => 'tickets', 'ticket' => 'tickets', 'ticket_form' => 'tickets', 'computo' => 'computo', 'computo_lista' => 'computo', 'inventario' => 'inventario',
     'mantenimiento' => 'mantenimiento', 'mantenimiento_form' => 'mantenimiento', 'usuarios' => 'usuarios', 'roles' => 'roles', 'rol_form' => 'roles', 'empresas' => 'empresas',
+    'cotizaciones' => 'cotizaciones', 'cotizacion' => 'cotizaciones', 'cotizacion_form' => 'cotizaciones', 'cotizacion_config' => 'cotizaciones',
     'config_correo' => 'config', 'gastos' => 'gastos', 'estadisticas' => 'estadisticas', 'categorias' => 'categorias', 'cartera' => 'cartera', 'factura' => 'cartera', 'ingresos' => 'ingresos',
 ];
 if (isset($modulo[$p])) require_perm($modulo[$p], 'ver');

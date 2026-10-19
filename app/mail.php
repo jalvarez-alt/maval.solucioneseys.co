@@ -40,26 +40,30 @@ function secreto_descifrar(string $t): string
     return (string)openssl_decrypt(substr($raw, 16), 'aes-256-cbc', secreto_clave(), OPENSSL_RAW_DATA, substr($raw, 0, 16));
 }
 
-function correo_config(): array
+/**
+ * Cuenta de correo configurada. $cuenta '' = mesa de ayuda y mantenimiento; 'cot' = cotizaciones (cuenta distinta, mismas claves con prefijo «cot_»).
+ */
+function correo_config(string $cuenta = ''): array
 {
+    $p = $cuenta === '' ? '' : $cuenta . '_';
     return [
-        'modo' => ajuste('mail_modo', 'smtp'),            // smtp | mail (función mail() del servidor)
-        'host' => (string)ajuste('smtp_host', ''),
-        'puerto' => (int)ajuste('smtp_puerto', 465),
-        'seguridad' => ajuste('smtp_seguridad', 'ssl'),   // ssl | tls | none
-        'usuario' => (string)ajuste('smtp_usuario', ''),
-        'clave' => secreto_descifrar((string)ajuste('smtp_clave', '')),
-        'desde' => (string)ajuste('mail_desde', ''),
-        'desde_nombre' => (string)ajuste('mail_desde_nombre', ''),
-        'responder' => (string)ajuste('mail_responder', ''),
-        'sin_verificar' => (bool)ajuste('smtp_sin_verificar', 0),
+        'modo' => ajuste($p . 'mail_modo', 'smtp'),            // smtp | mail (función mail() del servidor)
+        'host' => (string)ajuste($p . 'smtp_host', ''),
+        'puerto' => (int)ajuste($p . 'smtp_puerto', 465),
+        'seguridad' => ajuste($p . 'smtp_seguridad', 'ssl'),   // ssl | tls | none
+        'usuario' => (string)ajuste($p . 'smtp_usuario', ''),
+        'clave' => secreto_descifrar((string)ajuste($p . 'smtp_clave', '')),
+        'desde' => (string)ajuste($p . 'mail_desde', ''),
+        'desde_nombre' => (string)ajuste($p . 'mail_desde_nombre', ''),
+        'responder' => (string)ajuste($p . 'mail_responder', ''),
+        'sin_verificar' => (bool)ajuste($p . 'smtp_sin_verificar', 0),
     ];
 }
 /** ¿Está habilitado el envío y hay una cuenta configurada? */
-function correo_activo(): bool
+function correo_activo(string $cuenta = ''): bool
 {
-    if (!ajuste('mail_activo', 0)) return false;
-    $c = correo_config();
+    if (!ajuste(($cuenta === '' ? '' : $cuenta . '_') . 'mail_activo', 0)) return false;
+    $c = correo_config($cuenta);
     return filter_var($c['desde'], FILTER_VALIDATE_EMAIL) && ($c['modo'] === 'mail' || $c['host'] !== '');
 }
 function app_url(): string
@@ -95,8 +99,9 @@ function enviar_correo($para, string $asunto, string $html, array $o = []): arra
     $asunto = mb_substr(limpiar_cabecera($asunto), 0, 200);
     $motivo = $o['motivo'] ?? null;
     if (!$dest) return ['ok' => false, 'error' => 'Sin destinatarios válidos.', 'enviados' => 0];
-    $cfg = correo_config();
-    if (empty($o['forzar']) && !correo_activo()) return ['ok' => false, 'error' => 'El envío de correo está desactivado o sin configurar.', 'enviados' => 0];
+    $cuenta = (string)($o['cuenta'] ?? '');
+    $cfg = correo_config($cuenta);
+    if (empty($o['forzar']) && !correo_activo($cuenta)) return ['ok' => false, 'error' => 'El envío de correo está desactivado o sin configurar.', 'enviados' => 0];
     if (!filter_var($cfg['desde'], FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Falta el correo remitente.', 'enviados' => 0];
 
     $texto = preg_replace('/<\/t[dh]>/i', ' · ', $html);
@@ -120,6 +125,8 @@ function enviar_correo($para, string $asunto, string $html, array $o = []): arra
 function correo_mensaje(array $cfg, array $dest, string $asunto, string $html, string $texto, array $o): array
 {
     $b = 'mv' . bin2hex(random_bytes(12));
+    $adj = $o['adjuntos'] ?? [];
+    $bm = 'mx' . bin2hex(random_bytes(12));
     $dominio = substr(strrchr($cfg['desde'], '@'), 1);
     $de = ($cfg['desde_nombre'] !== '' ? cabecera_utf8($cfg['desde_nombre']) . ' ' : '') . '<' . $cfg['desde'] . '>';
     $resp = $o['responder'] ?? ($cfg['responder'] !== '' ? $cfg['responder'] : null);
@@ -131,10 +138,20 @@ function correo_mensaje(array $cfg, array $dest, string $asunto, string $html, s
         'MIME-Version: 1.0',
         'Auto-Submitted: auto-generated',
         'X-Mailer: MAVAL ' . APP_VERSION,
-        'Content-Type: multipart/alternative; boundary="' . $b . '"',
+        'Content-Type: ' . ($adj ? 'multipart/mixed; boundary="' . $bm . '"' : 'multipart/alternative; boundary="' . $b . '"'),
     ];
     $cuerpo = "--$b\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . chunk_split(base64_encode($texto)) . "\r\n"
         . "--$b\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . chunk_split(base64_encode($html)) . "\r\n--$b--\r\n";
+    if ($adj) {
+        // Con adjuntos: multipart/mixed { alternativa texto/HTML, archivos }
+        $mixto = "--$bm\r\nContent-Type: multipart/alternative; boundary=\"$b\"\r\n\r\n" . $cuerpo;
+        foreach ($adj as $a) {
+            $nom = cabecera_utf8(str_replace(['"', '\\'], '', $a['nombre']));
+            $mixto .= "--$bm\r\nContent-Type: " . ($a['tipo'] ?? 'application/octet-stream') . "; name=\"$nom\"\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"$nom\"\r\n\r\n"
+                . chunk_split(base64_encode($a['datos'])) . "\r\n";
+        }
+        $cuerpo = $mixto . "--$bm--\r\n";
+    }
     return [$h, $cuerpo];
 }
 

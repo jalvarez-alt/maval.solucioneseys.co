@@ -1,6 +1,6 @@
 # MAVAL — contexto del proyecto
 
-Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-18 (v1.3.0).
+Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-18 (v1.4.0).
 
 ## Qué es
 Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda (tickets) con avisos por correo, inventario de cómputo y otros equipos (incluye aires acondicionados), planeador de mantenimiento preventivo, roles y permisos, gastos, presupuesto, cartera (facturas y abonos) y entradas de dinero. Producción: https://maval.solucioneseys.co (Namecheap, cPanel).
@@ -25,10 +25,10 @@ Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda 
 ## Estructura
 - `index.php`: enrutador. `?p=<pagina>` carga `app/pages/<pagina>.php` (lista blanca en el propio `index.php`), exige login y valida CSRF.
 - `login.php`, `logout.php`, `instalar.php` (instalador; en producción ya se eliminó la ejecución, aquí queda `instalar.php.old`), `archivo.php` (entrega de adjuntos con permiso).
-- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.3.0, `DB_VERSION` 3. Función `q()` para consultas preparadas, `db()` para el PDO.
+- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.4.0, `DB_VERSION` 4. Función `q()` para consultas preparadas, `db()` para el PDO.
 - `app/pages/`: una página por módulo (tickets, inventario, computo*, importar, usuarios, empresas, gastos, estadisticas, presupuesto, categorias, cartera, factura*, ingresos, perfil, inicio).
 - `app/computo.php`, `app/importar.php`, `app/masivo.php`: lógica de inventario de cómputo, importación masiva Excel/CSV y acciones masivas.
-- `app/mail.php` (SMTP propio sin dependencias, ajustes en tabla `ajustes`, plantilla HTML, `despues()` envía tras responder), `app/notificaciones.php` (avisos de tickets y recordatorios de mantenimiento), `app/mantenimiento.php` (lógica del planeador), `cron.php` (tarea diaria de recordatorios).
+- `app/mail.php` (SMTP propio sin dependencias, ajustes en tabla `ajustes`, plantilla HTML, `despues()` envía tras responder), `app/notificaciones.php` (avisos de tickets y recordatorios de mantenimiento), `app/mantenimiento.php` (lógica del planeador), `app/cotizaciones.php` (totales, datos del emisor y PDF de cotizaciones en 2 formatos), `cron.php` (tarea diaria de recordatorios).
 - `app/lib/`: `xlsx.php` (genera), `xlsx_read.php` (lee), `pdf.php` — librerías propias, sin dependencias.
 - `app/layout_top.php` / `layout_bottom.php`: plantilla.
 - `sql/schema.sql`: esquema (19 tablas; las migraciones de `migrar()` aplican v2 y v3 sobre bases existentes). La BD se actualiza sola al entrar como administrador tras subir una versión nueva.
@@ -36,13 +36,18 @@ Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda 
 - `maval.zip`: paquete de despliegue anterior. `error_log`: log de PHP del servidor.
 
 ## Base de datos (tablas)
-empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos, tickets, ticket_comentarios, adjuntos, gasto_categorias, gastos, presupuestos, facturas, pagos, **roles, rol_permisos, ajustes, correo_log, mantenimientos** (+ `app_meta`, usada para versionado del esquema).
+empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos, tickets, ticket_comentarios, adjuntos, gasto_categorias, gastos, presupuestos, facturas, pagos, **roles, rol_permisos, ajustes, correo_log, mantenimientos, cotizaciones, cotizacion_items** (+ `app_meta`, usada para versionado del esquema).
 
-## Roles y permisos (v1.3.0)
+## Roles y permisos (v1.4.0)
 - Cada usuario tiene un **rol** (`usuarios.rol_id`). Roles del sistema: Administrador (acceso total, no editable), Usuario y Empresa (permisos editables). Se pueden crear roles propios en *Roles y permisos*.
 - Un rol define el **alcance** de los datos (todos / solo su empresa / solo los propios) y una matriz **módulo × acción** (consultar, crear, editar, eliminar, aprobar, administrar) guardada en `rol_permisos`. Módulos y acciones válidas: constante `MODULOS` en `bootstrap.php`.
 - En código: `can('modulo', 'accion')`, `require_perm()`, `alcance()`. `is_admin()` solo identifica al rol Administrador. La columna heredada `usuarios.rol` se mantiene sincronizada (admin/usuario/empresa).
 - Mesa de ayuda: *administrar* = atender (estado, asignar, notas internas, recibe avisos del equipo); *aprobar* = marcar resuelto/cerrado.
+
+## Cotizaciones (v1.4.0)
+- Módulo `cotizaciones` (menú *Comercial*). Dos formatos: **items** (réplica de Prueba.pdf: encabezado del cliente, tabla Ítem/Referencia/Descripción/Marca/Unidad/Cant/Valor, totales, cuadros «Cordial saludo» y «Condiciones Comerciales») y **propuesta** (réplica de Prueba2.pdf: carta con Descripción, Alcances, Oferta comercial con mano de obra y Condiciones). Consecutivo único para ambos (`cot_siguiente()`, inicia en `ajustes.cot_inicio`).
+- PDF generado con `app/lib/pdf.php`, que ahora soporta imágenes (JPG y PNG 8 bits, con o sin alfa) y `wrap()`. Encabezado por defecto: `assets/img/banner_cotizacion.png`; se puede reemplazar desde *Configurar cotizaciones* (se guarda en `uploads/cot_banner.*`).
+- Se envían por correo con el PDF adjunto desde una **cuenta SMTP propia** (claves `cot_*` en `ajustes`, `correo_config('cot')`), independiente de la de la mesa de ayuda. Permisos: *aprobar* = enviar y cambiar estado; *administrar* = configuración.
 
 ## Correo y notificaciones
 - Configuración en *Correo y notificaciones* (SMTP o `mail()`); la contraseña se guarda cifrada con una clave derivada de la config de la BD (si cambia la clave de la BD hay que reescribirla).

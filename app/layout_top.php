@@ -7,7 +7,7 @@ $p = [
     'ticket' => 'tickets', 'ticket_form' => 'tickets', 'equipo' => (es_computo((string)val('SELECT tipo FROM equipos WHERE id = ?', [(int)($_GET['id'] ?? 0)])) ? 'computo' : 'inventario'), 'equipo_form' => 'inventario',
     'computo_lista' => 'computo', 'computo_form' => 'computo', 'importar' => (($_GET['inv'] ?? '') === 'otros' ? 'inventario' : 'computo'),
     'gasto_form' => 'gastos', 'presupuesto' => 'estadisticas', 'factura' => 'cartera', 'factura_form' => 'cartera',
-    'usuario_form' => 'usuarios', 'empresa_form' => 'empresas', 'rol_form' => 'roles', 'mantenimiento_form' => 'mantenimiento',
+    'usuario_form' => 'usuarios', 'empresa_form' => 'empresas', 'rol_form' => 'roles', 'mantenimiento_form' => 'mantenimiento', 'cotizacion' => 'cotizaciones', 'cotizacion_form' => 'cotizaciones', 'cotizacion_config' => 'cotizaciones',
 ][$p] ?? $p;
 $appName = $CONFIG['app_name'] ?? 'MAVAL';
 $abiertos = $mantVencidos = 0;
@@ -49,6 +49,10 @@ function nav_item(string $page, string $icon, string $label, string $current, st
       <?php if (can('computo')) echo nav_item('computo', 'pc-display', 'Inventario de cómputo', $p); ?>
       <?php if (can('inventario')) echo nav_item('inventario', 'phone', 'Otros equipos', $p); ?>
       <?php if (can('mantenimiento')) echo nav_item('mantenimiento', 'calendar-check', 'Planeador de mantenimiento', $p, $mantVencidos ? '<em class="cnt" style="background:#b91c1c" title="Mantenimientos vencidos">' . $mantVencidos . '</em>' : ''); ?>
+      <?php if (can('cotizaciones')): ?>
+      <div class="nav-h">Comercial</div>
+      <?= nav_item('cotizaciones', 'file-earmark-text', 'Cotizaciones', $p) ?>
+      <?php endif; ?>
       <?php if (can('gastos') || can('estadisticas') || can('cartera') || can('ingresos')): ?>
       <div class="nav-h">Finanzas</div>
       <?php if (can('gastos')) echo nav_item('gastos', 'wallet2', 'Gastos', $p); ?>
@@ -56,12 +60,13 @@ function nav_item(string $page, string $icon, string $label, string $current, st
       <?php if (can('cartera')) echo nav_item('cartera', 'receipt', 'Cartera', $p); ?>
       <?php if (can('ingresos')) echo nav_item('ingresos', 'cash-coin', 'Entradas de dinero', $p); ?>
       <?php endif; ?>
-      <?php if (can('usuarios') || can('roles') || can('empresas') || can('categorias') || can('config')): ?>
+      <?php if (can('usuarios') || can('roles') || can('empresas') || can('categorias') || can('config') || can('cotizaciones', 'administrar')): ?>
       <div class="nav-h">Administración</div>
       <?php if (can('usuarios')) echo nav_item('usuarios', 'people', 'Usuarios', $p); ?>
       <?php if (can('roles')) echo nav_item('roles', 'shield-check', 'Roles y permisos', $p); ?>
       <?php if (can('empresas')) echo nav_item('empresas', 'buildings', 'Empresas', $p); ?>
       <?php if (can('categorias')) echo nav_item('categorias', 'tags', 'Categorías de gasto', $p); ?>
+      <?php if (can('cotizaciones', 'administrar')) echo nav_item('cotizacion_config', 'sliders', 'Configurar cotizaciones', $p); ?>
       <?php if (can('config')) echo nav_item('config_correo', 'envelope-at', 'Correo y notificaciones', $p); ?>
       <?php endif; ?>
     </nav>

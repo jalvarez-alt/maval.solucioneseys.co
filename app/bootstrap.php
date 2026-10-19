@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.3.0');
-define('DB_VERSION', 3);
+define('APP_VERSION', '1.4.0');
+define('DB_VERSION', 4);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -128,8 +128,29 @@ function migrar(): void
         $run("UPDATE equipos SET tipo = 'Escritorio' WHERE tipo = 'Computador de escritorio'");
     }
     if ($v < 3) migrar_v3($run, $eng);
+    if ($v < 4) migrar_v4($run, $eng);
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
+}
+
+/** v4: módulo de cotizaciones (encabezado e ítems). */
+function migrar_v4(callable $run, string $eng): void
+{
+    $run('CREATE TABLE IF NOT EXISTS cotizaciones (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, consecutivo INT UNSIGNED NOT NULL, formato VARCHAR(10) NOT NULL DEFAULT \'items\',
+        fecha DATE NOT NULL, ciudad VARCHAR(80) NULL, empresa_id INT UNSIGNED NULL, cliente_nombre VARCHAR(150) NOT NULL, cliente_nit VARCHAR(30) NULL,
+        cliente_direccion VARCHAR(200) NULL, cliente_telefono VARCHAR(40) NULL, cliente_email VARCHAR(150) NULL, atencion VARCHAR(120) NULL,
+        descripcion TEXT NULL, alcances TEXT NULL, subtotal DECIMAL(15,2) NOT NULL DEFAULT 0, mano_obra DECIMAL(15,2) NOT NULL DEFAULT 0,
+        iva_pct DECIMAL(5,2) NOT NULL DEFAULT 0, iva DECIMAL(15,2) NOT NULL DEFAULT 0, total DECIMAL(15,2) NOT NULL DEFAULT 0,
+        validez VARCHAR(100) NULL, tiempo_entrega VARCHAR(100) NULL, forma_pago VARCHAR(150) NULL, notas TEXT NULL,
+        estado VARCHAR(10) NOT NULL DEFAULT \'Borrador\', enviada DATETIME NULL, enviada_a VARCHAR(500) NULL,
+        creado_por INT UNSIGNED NULL, creado DATETIME NULL, actualizado DATETIME NULL, UNIQUE KEY uq_cot_consecutivo (consecutivo),
+        FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE SET NULL)' . $eng);
+    $run('CREATE TABLE IF NOT EXISTS cotizacion_items (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, cotizacion_id INT UNSIGNED NOT NULL, orden SMALLINT NOT NULL DEFAULT 0,
+        referencia VARCHAR(60) NULL, descripcion VARCHAR(500) NOT NULL, marca VARCHAR(60) NULL, unidad VARCHAR(20) NULL,
+        cantidad DECIMAL(12,2) NOT NULL DEFAULT 1, valor_unitario DECIMAL(15,2) NOT NULL DEFAULT 0, valor_total DECIMAL(15,2) NOT NULL DEFAULT 0,
+        FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE CASCADE)' . $eng);
 }
 
 /** v3: roles y permisos, ajustes y registro de correo, planeador de mantenimiento y datos de aires acondicionados. */
@@ -384,6 +405,7 @@ function badge(string $text, string $kind = ''): string
         'admin' => 'danger', 'usuario' => 'primary', 'empresa' => 'success',
         'Legal' => 'success', 'No legal' => 'danger', 'Libre' => 'secondary', 'Sin registrar' => 'secondary',
         'Bajo' => 'success', 'Medio' => 'warning', 'Alto' => 'danger',
+        'Borrador' => 'secondary', 'Enviada' => 'info', 'Aceptada' => 'success', 'Rechazada' => 'danger',
     ];
     $k = $kind ?: ($map[$text] ?? 'secondary');
     return '<span class="badge-s badge-' . $k . '">' . e(ROLES[$text] ?? $text) . '</span>';
@@ -466,6 +488,9 @@ const MODULOS = [
     'mantenimiento' => ['Planeador de mantenimiento', 'calendar-check', [
         'ver' => 'Consultar la programación', 'crear' => 'Programar mantenimientos', 'editar' => 'Reprogramar y editar', 'eliminar' => 'Eliminar programaciones',
         'aprobar' => 'Registrar mantenimientos como realizados o cancelarlos', 'administrar' => 'Enviar recordatorios manuales y exportar']],
+    'cotizaciones' => ['Cotizaciones', 'file-earmark-text', [
+        'ver' => 'Consultar cotizaciones y descargar el PDF', 'crear' => 'Crear y duplicar cotizaciones', 'editar' => 'Editar cotizaciones', 'eliminar' => 'Eliminar cotizaciones',
+        'aprobar' => 'Enviar por correo y cambiar el estado (aceptada, rechazada, anulada)', 'administrar' => 'Configurar la cuenta de correo, los datos de la empresa, el logo y el consecutivo']],
     'gastos' => ['Gastos', 'wallet2', ['ver' => 'Consultar gastos', 'crear' => 'Registrar gastos', 'editar' => 'Editar gastos', 'eliminar' => 'Eliminar gastos']],
     'estadisticas' => ['Estadísticas y presupuesto', 'bar-chart-line', ['ver' => 'Consultar estadísticas y presupuesto', 'editar' => 'Definir el presupuesto']],
     'cartera' => ['Cartera', 'receipt', ['ver' => 'Consultar facturas y abonos', 'crear' => 'Crear facturas y registrar abonos', 'editar' => 'Editar facturas', 'eliminar' => 'Eliminar facturas y abonos', 'aprobar' => 'Anular o reactivar facturas']],
@@ -476,7 +501,23 @@ const MODULOS = [
     'roles' => ['Roles y permisos', 'shield-check', ['ver' => 'Consultar roles', 'crear' => 'Crear roles', 'editar' => 'Editar permisos de los roles', 'eliminar' => 'Eliminar roles']],
     'config' => ['Correo y notificaciones', 'envelope-at', ['ver' => 'Consultar la configuración', 'administrar' => 'Cambiar la configuración y enviar pruebas']],
 ];
-const ALCANCES = ['todos' => 'Todos los registros', 'empresa' => 'Solo los de su empresa', 'propios' => 'Solo los propios (sus tickets y equipos asignados)'];
+// ---------- Cotizaciones ----------
+const COT_FORMATOS = ['items' => 'Cotización con ítems', 'propuesta' => 'Propuesta (descripción, alcances, oferta y condiciones)'];
+const COT_ESTADOS = ['Borrador', 'Enviada', 'Aceptada', 'Rechazada', 'Anulada'];
+const COT_UNIDADES = ['UND', 'M', 'ML', 'M2', 'KG', 'GLB', 'HORA', 'DIA', 'MES', 'SERV', 'PAQ', 'CAJA', 'ROLLO'];
+/** Siguiente número de cotización (único para todos los formatos). */
+function cot_siguiente(): int
+{
+    return max((int)val('SELECT COALESCE(MAX(consecutivo), 0) + 1 FROM cotizaciones'), (int)ajuste('cot_inicio', 1));
+}
+/** Fecha larga en español: «diciembre 21 de 2022». */
+function fecha_larga(string $f): string
+{
+    $t = strtotime($f);
+    return mb_strtolower(MESES[(int)date('n', $t)]) . ' ' . date('j', $t) . ' de ' . date('Y', $t);
+}
+
+const ALCANCES =['todos' => 'Todos los registros', 'empresa' => 'Solo los de su empresa', 'propios' => 'Solo los propios (sus tickets y equipos asignados)'];
 const EQUIPO_TIPOS = [...COMPUTO_TIPOS, ...OTROS_TIPOS];
 const RENOVACION = ['Bajo', 'Medio', 'Alto'];
 const LICENCIAS = ['Legal', 'No legal', 'Libre'];

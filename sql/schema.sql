@@ -269,3 +269,52 @@ CREATE TABLE IF NOT EXISTS mantenimientos (
   actualizado DATETIME NULL,
   FOREIGN KEY (equipo_id) REFERENCES equipos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v4: cotizaciones
+CREATE TABLE IF NOT EXISTS cotizaciones (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  consecutivo INT UNSIGNED NOT NULL,
+  formato VARCHAR(10) NOT NULL DEFAULT 'items',
+  fecha DATE NOT NULL,
+  ciudad VARCHAR(80) NULL,
+  empresa_id INT UNSIGNED NULL,
+  cliente_nombre VARCHAR(150) NOT NULL,
+  cliente_nit VARCHAR(30) NULL,
+  cliente_direccion VARCHAR(200) NULL,
+  cliente_telefono VARCHAR(40) NULL,
+  cliente_email VARCHAR(150) NULL,
+  atencion VARCHAR(120) NULL,
+  descripcion TEXT NULL,
+  alcances TEXT NULL,
+  subtotal DECIMAL(15,2) NOT NULL DEFAULT 0,
+  mano_obra DECIMAL(15,2) NOT NULL DEFAULT 0,
+  iva_pct DECIMAL(5,2) NOT NULL DEFAULT 0,
+  iva DECIMAL(15,2) NOT NULL DEFAULT 0,
+  total DECIMAL(15,2) NOT NULL DEFAULT 0,
+  validez VARCHAR(100) NULL,
+  tiempo_entrega VARCHAR(100) NULL,
+  forma_pago VARCHAR(150) NULL,
+  notas TEXT NULL,
+  estado VARCHAR(10) NOT NULL DEFAULT 'Borrador',
+  enviada DATETIME NULL,
+  enviada_a VARCHAR(500) NULL,
+  creado_por INT UNSIGNED NULL,
+  creado DATETIME NULL,
+  actualizado DATETIME NULL,
+  UNIQUE KEY uq_cot_consecutivo (consecutivo),
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS cotizacion_items (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  cotizacion_id INT UNSIGNED NOT NULL,
+  orden SMALLINT NOT NULL DEFAULT 0,
+  referencia VARCHAR(60) NULL,
+  descripcion VARCHAR(500) NOT NULL,
+  marca VARCHAR(60) NULL,
+  unidad VARCHAR(20) NULL,
+  cantidad DECIMAL(12,2) NOT NULL DEFAULT 1,
+  valor_unitario DECIMAL(15,2) NOT NULL DEFAULT 0,
+  valor_total DECIMAL(15,2) NOT NULL DEFAULT 0,
+  FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
