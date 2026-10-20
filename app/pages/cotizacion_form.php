@@ -40,7 +40,7 @@ $formato = $c['formato'] ?? ($origen['formato'] ?? $formato);
 $esProp = $formato === 'propuesta';
 $v = $origen ?: [];
 $v += ['fecha' => today(), 'ciudad' => $em['ciudad'], 'empresa_id' => null, 'cliente_nombre' => '', 'cliente_nit' => '', 'cliente_direccion' => '', 'cliente_telefono' => '', 'cliente_email' => '', 'atencion' => '',
-    'descripcion' => '', 'alcances' => '', 'mano_obra' => 0, 'mano_obra2' => 0, 'titulo1' => '', 'titulo2' => '', 'sumar_ofertas' => 0, 'validez' => $em['validez'], 'tiempo_entrega' => $em['entrega'], 'forma_pago' => $em['pago'], 'notas' => ''];
+    'descripcion' => '', 'alcances' => '', 'mano_obra' => 0, 'mano_obra2' => 0, 'titulo1' => '', 'titulo2' => '', 'sumar_ofertas' => 0, 'sumar1' => 1, 'sumar2' => 1, 'validez' => $em['validez'], 'tiempo_entrega' => $em['entrega'], 'forma_pago' => $em['pago'], 'notas' => ''];
 if ($copiar && !$c) $v['fecha'] = today();
 $vacio = [['referencia' => '', 'descripcion' => '', 'marca' => '', 'unidad' => 'UND', 'cantidad' => 1, 'valor_unitario' => '']];
 $items = [1 => [], 2 => []];
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'cliente_nombre' => (string)post('cliente_nombre', ''), 'cliente_nit' => post('cliente_nit'), 'cliente_direccion' => post('cliente_direccion'),
         'cliente_telefono' => post('cliente_telefono'), 'cliente_email' => post('cliente_email'), 'atencion' => post('atencion'),
         'descripcion' => $esProp ? post('descripcion') : null, 'alcances' => $esProp ? post('alcances') : null,
-        'titulo1' => $esProp ? post('titulo1') : null, 'titulo2' => $oferta2 ? post('titulo2') : null, 'sumar_ofertas' => $oferta2 && post('sumar_ofertas') ? 1 : 0,
+        'titulo1' => $esProp ? post('titulo1') : null, 'titulo2' => $oferta2 ? post('titulo2') : null, 'sumar_ofertas' => $oferta2 && post('sumar_ofertas') ? 1 : 0, 'sumar1' => post('sumar_1') ? 1 : 0, 'sumar2' => $oferta2 && post('sumar_2') ? 1 : 0,
         'validez' => post('validez'), 'tiempo_entrega' => post('tiempo_entrega'), 'forma_pago' => post('forma_pago'), 'notas' => post('notas'),
     ];
     $its = [1 => [], 2 => []];
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'unidad' => mb_substr(trim((string)($_POST['it_uni'][$o][$i] ?? '')), 0, 20), 'cantidad' => $cant > 0 ? $cant : 1, 'valor_unitario' => $vu];
         }
     }
-    $mano = [1 => $esProp ? $num(post('mano_obra_1', '0')) : 0.0, 2 => $oferta2 ? $num(post('mano_obra_2', '0')) : 0.0];
+    $mano = [1 => $num(post('mano_obra_1', '0')), 2 => $oferta2 ? $num(post('mano_obra_2', '0')) : 0.0]; // solo llegan en cotizaciones antiguas
     if (!$d['fecha']) $errors[] = 'Indique una fecha válida.';
     if ($d['cliente_nombre'] === '') $errors[] = 'Escriba el nombre del cliente (Señores).';
     if ($d['cliente_email'] && !filter_var($d['cliente_email'], FILTER_VALIDATE_EMAIL)) $errors[] = 'El correo del cliente no es válido.';
@@ -130,12 +130,18 @@ function cot_tabla_items(int $o, array $lista, bool $esProp): void
 /** Totales de una oferta. */
 function cot_bloque_totales(int $o, bool $esProp, array $v): void
 { ?>
-  <div class="row justify-content-end mt-3"><div class="col-md-5 col-lg-4">
-    <table class="tbl"><tbody>
+  <?php $k = $o === 2 ? 'mano_obra2' : 'mano_obra'; $sk = 'sumar' . $o; ?>
+  <div class="row justify-content-end mt-3"><div class="col-md-6 col-lg-5">
+    <div class="form-check mb-2">
+      <input class="form-check-input sumar-chk" type="checkbox" name="sumar_<?= $o ?>" value="1" id="sumar_<?= $o ?>" data-o="<?= $o ?>" <?= ($v[$sk] ?? 1) ? 'checked' : '' ?>>
+      <label class="form-check-label fw-semibold" for="sumar_<?= $o ?>">Sumar los ítems y mostrar el total<?= $esProp ? ' de la oferta ' . $o : '' ?></label>
+    </div>
+    <table class="tbl" data-resumen="<?= $o ?>"><tbody>
       <tr><td class="muted">Subtotal ítems</td><td class="r" data-t="sub" data-o="<?= $o ?>">$ 0</td></tr>
-      <?php if ($esProp): $k = $o === 2 ? 'mano_obra2' : 'mano_obra'; ?><tr><td class="muted">Mano de obra</td><td class="r"><input class="form-control form-control-sm text-end mano" data-o="<?= $o ?>" name="mano_obra_<?= $o ?>" value="<?= e((float)$v[$k] ?: '') ?>" inputmode="decimal" placeholder="0"></td></tr><?php endif; ?>
+      <?php if ((float)($v[$k] ?? 0) > 0): /* cotizaciones antiguas que traían mano de obra: se conserva hasta que se quite */ ?><tr><td class="muted">Mano de obra</td><td class="r"><input class="form-control form-control-sm text-end mano" data-o="<?= $o ?>" name="mano_obra_<?= $o ?>" value="<?= e((float)$v[$k]) ?>" inputmode="decimal"></td></tr><?php endif; ?>
       <tr><td class="fw-bold">TOTAL<?= $esProp ? ' oferta ' . $o : '' ?></td><td class="r fw-bold fs-6" data-t="tot" data-o="<?= $o ?>">$ 0</td></tr>
     </tbody></table>
+    <div class="form-text">Si no lo marca, la <?= $esProp ? 'oferta' : 'cotización' ?> se muestra solo con los valores de cada ítem, sin subtotal ni total.</div>
   </div></div>
 <?php } ?>
 <style>
@@ -240,6 +246,8 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
         r.querySelector('.vt').textContent = money(t); sub += t;
       });
       var m = document.querySelector('.mano[data-o="' + o + '"]'), mano = m ? pm(m.value) : 0;
+      var chk = document.querySelector('.sumar-chk[data-o="' + o + '"]'), rs = document.querySelector('table[data-resumen="' + o + '"]');
+      if (rs && chk) rs.style.opacity = chk.checked ? '1' : '.4';
       var set = function (k, val) { var el = document.querySelector('[data-t="' + k + '"][data-o="' + o + '"]'); if (el) el.textContent = money(val); };
       set('sub', sub); set('tot', sub + mano); tot[o] = sub + mano;
     });
@@ -267,7 +275,7 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
       var body = tabla(2); while (body.rows.length > 1) body.deleteRow(-1);
       Array.prototype.forEach.call(body.querySelectorAll('input,textarea'), function (i) { i.value = ''; });
       body.querySelector('.q').value = '1'; body.querySelector('[name^="it_uni"]').value = 'UND';
-      document.querySelector('[name="titulo2"]').value = ''; document.querySelector('.mano[data-o="2"]').value = '';
+      document.querySelector('[name="titulo2"]').value = ''; var m2 = document.querySelector('.mano[data-o="2"]'); if (m2) m2.value = '';
       $('bloque2').hidden = true; $('agregar2').hidden = false; $('oferta2').value = '0'; recalc();
     });
   }

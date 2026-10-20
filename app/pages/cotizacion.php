@@ -8,9 +8,9 @@ $title = 'Cotización No. ' . $c['consecutivo'];
 $em = cot_emisor();
 $esProp = $c['formato'] === 'propuesta';
 // Una o dos ofertas (solo las propuestas pueden tener dos)
-$ofertas = [1 => ['titulo' => $c['titulo1'] ?? '', 'mano' => $c['mano_obra'], 'sub' => $c['subtotal'], 'iva' => $c['iva'], 'total' => $c['total'], 'items' => []]];
+$ofertas = [1 => ['titulo' => $c['titulo1'] ?? '', 'mano' => $c['mano_obra'], 'sumar' => (int)($c['sumar1'] ?? 1), 'sub' => $c['subtotal'], 'iva' => $c['iva'], 'total' => $c['total'], 'items' => []]];
 foreach ($items as $it) {
-    if ((int)$it['oferta'] === 2 && !isset($ofertas[2])) $ofertas[2] = ['titulo' => $c['titulo2'] ?? '', 'mano' => $c['mano_obra2'], 'sub' => $c['subtotal2'], 'iva' => $c['iva2'], 'total' => $c['total2'], 'items' => []];
+    if ((int)$it['oferta'] === 2 && !isset($ofertas[2])) $ofertas[2] = ['titulo' => $c['titulo2'] ?? '', 'mano' => $c['mano_obra2'], 'sumar' => (int)($c['sumar2'] ?? 1), 'sub' => $c['subtotal2'], 'iva' => $c['iva2'], 'total' => $c['total2'], 'items' => []];
     $ofertas[(int)$it['oferta'] === 2 ? 2 : 1]['items'][] = $it;
 }
 
@@ -90,12 +90,12 @@ $msgDef = "Cordial saludo" . ($c['atencion'] ? ', ' . $c['atencion'] : '') . ".\
         <tfoot>
           <?php $cs = $esProp ? 4 : 7; ?>
           <?php if ((float)$of['mano'] > 0): ?><tr><td colspan="<?= $cs ?>" class="r muted">Mano de obra</td><td class="r"><?= money($of['mano']) ?></td></tr><?php endif; ?>
-          <tr><td colspan="<?= $cs ?>" class="r fw-bold">TOTAL<?= count($ofertas) > 1 ? ' OFERTA ' . $o : '' ?></td><td class="r fw-bold"><?= money($of['total']) ?></td></tr>
+          <?php if ($of['sumar']): ?><tr><td colspan="<?= $cs ?>" class="r fw-bold">TOTAL<?= count($ofertas) > 1 ? ' OFERTA ' . $o : '' ?></td><td class="r fw-bold"><?= money($of['total']) ?></td></tr><?php else: ?><tr><td colspan="<?= $cs + 1 ?>" class="muted small">Esta oferta se presenta sin total (solo valores por ítem).</td></tr><?php endif; ?>
         </tfoot>
       </table></div>
     </div>
     <?php endforeach; ?>
-    <?php if (count($ofertas) > 1 && !empty($c["sumar_ofertas"])): ?>
+    <?php if (count($ofertas) > 1 && !empty($c["sumar_ofertas"]) && $ofertas[1]['sumar'] && $ofertas[2]['sumar']): ?>
     <div class="panel d-flex justify-content-between align-items-center"><strong>TOTAL OFERTA 1 + OFERTA 2</strong><strong class="fs-5"><?= money($c["total"] + $c["total2"]) ?></strong></div>
     <?php endif; ?>
     <?php if ($esProp): ?>

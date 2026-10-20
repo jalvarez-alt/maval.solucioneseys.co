@@ -106,8 +106,10 @@ function cot_acento(SimplePdf $pdf, float $x, float $y, float $w): void
 function cot_total_texto(array $c): string
 {
     $t2 = (float)($c['total2'] ?? 0);
-    if ($t2 > 0 && !empty($c['sumar_ofertas'])) return money((float)$c['total'] + $t2) . ' (suma de 2 ofertas)';
-    return money($c['total']) . ($t2 > 0 ? ' / ' . money($t2) : '');
+    $s1 = (int)($c['sumar1'] ?? 1) === 1; $s2 = (int)($c['sumar2'] ?? 1) === 1;
+    if ($t2 > 0 && !empty($c['sumar_ofertas']) && $s1 && $s2) return money((float)$c['total'] + $t2) . ' (suma de 2 ofertas)';
+    $a = $s1 ? money($c['total']) : 'sin total';
+    return $t2 > 0 ? $a . ' / ' . ($s2 ? money($t2) : 'sin total') : ($s1 ? $a : 'Sin total');
 }
 
 /** Nombre de archivo del PDF. */
@@ -197,7 +199,7 @@ function cot_pdf_items(array $c, array $items): SimplePdf
     // Totales
     if ($y + 140 > $bottom) { $pie($pdf->pageNo()); $pdf->addPage(); $y = 40; }
     $y += 10;
-    $tot = [['Sub Total', $c['subtotal'] + $c['mano_obra'], false], ['TOTAL', $c['total'], true]];
+    $tot = (int)($c['sumar1'] ?? 1) ? [['Sub Total', $c['subtotal'] + $c['mano_obra'], false], ['TOTAL', $c['total'], true]] : [];   // el usuario decide si se suman los ítems
     foreach ($tot as [$lbl, $v, $b]) {
         $pdf->rect($xs[6], $y, $cols[6][1] + $cols[7][1], 19, $b ? COT_NAVY : COT_TINTE, $b ? COT_NAVY : COT_LINEA, 0.8);
         $pdf->text($xs[6], $y + 13, $lbl, 9, true, $b ? '#ffffff' : COT_GRIS, 'R', $cols[6][1] - 4);
@@ -293,8 +295,8 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
     $ofertas = [];
     foreach ($porOferta as $n => $its) {
         $ofertas[] = $n === 2
-            ? ['n' => 2, 'titulo' => (string)($c['titulo2'] ?? ''), 'items' => $its, 'mano' => $c['mano_obra2'] ?? 0, 'total' => $c['total2'] ?? 0]
-            : ['n' => 1, 'titulo' => (string)($c['titulo1'] ?? ''), 'items' => $its, 'mano' => $c['mano_obra'], 'total' => $c['total']];
+            ? ['n' => 2, 'titulo' => (string)($c['titulo2'] ?? ''), 'items' => $its, 'mano' => $c['mano_obra2'] ?? 0, 'total' => $c['total2'] ?? 0, 'sumar' => (int)($c['sumar2'] ?? 1)]
+            : ['n' => 1, 'titulo' => (string)($c['titulo1'] ?? ''), 'items' => $its, 'mano' => $c['mano_obra'], 'total' => $c['total'], 'sumar' => (int)($c['sumar1'] ?? 1)];
     }
     $varias = count($ofertas) > 1;
     $titulo($varias ? '3. OFERTAS COMERCIALES:' : '3. OFERTA COMERCIAL:');
@@ -340,6 +342,7 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
             $y += 16;
         }
         $y += 8;
+        if (!$of['sumar']) { $y += $varias ? 24 : 20; continue; }   // sin total: solo los valores de cada ítem
         $pdf->rect($xs[0], $y, array_sum($tw), 19, COT_TINTE, COT_NAVY, 1.2);
         $pdf->line($xs[3], $y, $xs[3], $y + 19, COT_NAVY, 1.0);
         $pdf->text($xs[0], $y + 13, $varias ? 'Total oferta ' . $of['n'] : 'Total', 10, true, COT_NAVY, 'C', $tw[0] + $tw[1] + $tw[2]);
@@ -347,7 +350,7 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
         $y += $varias ? 32 : 36;
     }
     // Decisión del usuario: sumar las dos ofertas en un total combinado
-    if ($varias && !empty($c['sumar_ofertas'])) {
+    if ($varias && !empty($c['sumar_ofertas']) && $ofertas[0]['sumar'] && $ofertas[1]['sumar']) {
         $asegurar(40);
         $suma = (float)$c['total'] + (float)($c['total2'] ?? 0);
         $pdf->rect($xs[0], $y, array_sum($tw), 21, COT_NAVY, COT_NAVY, 1.2);
