@@ -22,7 +22,6 @@ function cot_emisor(): array
         'validez' => ajuste('cot_validez', '10 DIAS'),
         'entrega' => ajuste('cot_entrega', 'INMEDIATA'),
         'pago' => ajuste('cot_pago', 'CONTADO'),
-        'iva' => (float)ajuste('cot_iva', 0),
     ];
 }
 
@@ -32,14 +31,13 @@ function cot_num($n): string
     return abs($n - round($n)) < 0.005 ? number_format($n, 0, ',', '.') : number_format($n, 2, ',', '.');
 }
 
-/** Subtotal, IVA y total a partir de los ítems, la mano de obra y el porcentaje de IVA. */
-function cot_totales(array $items, float $manoObra, float $ivaPct): array
+/** Subtotal y total (ítems + mano de obra). Las cotizaciones no manejan IVA. */
+function cot_totales(array $items, float $manoObra): array
 {
     $sub = 0.0;
     foreach ($items as $it) $sub += round((float)$it['cantidad'] * (float)$it['valor_unitario'], 2);
     $sub = round($sub, 2);
-    $iva = round(($sub + $manoObra) * $ivaPct / 100, 2);
-    return ['subtotal' => $sub, 'iva' => $iva, 'total' => round($sub + $manoObra + $iva, 2)];
+    return ['subtotal' => $sub, 'total' => round($sub + $manoObra, 2)];
 }
 
 function cot_obtener(int $id): ?array
@@ -72,6 +70,12 @@ function cot_pie_contacto(SimplePdf $pdf, array $em): void
     $pdf->text(40, 750, trim($em['direccion'] . ' ' . $em['telefonos']), 9, false, '#1f4e79', 'C', 532);
     $pdf->text(40, 762, (string)$em['email'], 9, false, '#1f4e79', 'C', 532);
     $pdf->text(40, 774, (string)$em['web'], 9, false, '#1f4e79', 'C', 532);
+}
+
+/** Total(es) de la cotización para listas y correos: «$ a» o «$ a / $ b» cuando hay dos ofertas. */
+function cot_total_texto(array $c): string
+{
+    return money($c['total']) . ((float)($c['total2'] ?? 0) > 0 ? ' / ' . money($c['total2']) : '');
 }
 
 /** Nombre de archivo del PDF. */
@@ -162,7 +166,6 @@ function cot_pdf_items(array $c, array $items): SimplePdf
     if ($y + 130 > $bottom) { $pie($pdf->pageNo()); $pdf->addPage(); $y = 40; }
     $y += 8;
     $tot = [['Sub Total', $c['subtotal'] + $c['mano_obra'], false]];
-    if ((float)$c['iva'] > 0) $tot[] = ['IVA ' . cot_num($c['iva_pct']) . '%', $c['iva'], false];
     $tot[] = ['TOTAL', $c['total'], true];
     foreach ($tot as [$lbl, $v, $b]) {
         $pdf->rect($xs[6], $y, $cols[6][1] + $cols[7][1], 17, '', '#000000', $b ? 1.4 : 0.8);
@@ -219,7 +222,8 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
     if ($c['atencion']) { $pdf->text($L, $y, 'Atn: ' . $c['atencion'], 10.5); $y += 14.5; }
     $y += 10;
     $pdf->text($L, $y, 'Índice:', 10.5); $y += 14.5;
-    foreach (['1. Descripción', '2. Alcances de la propuesta', '3. Oferta comercial', '4. Condiciones comerciales'] as $ln) { $pdf->text($L, $y, $ln, 10.5); $y += 14.5; }
+    $nOf = count(array_unique(array_map(fn($i) => (int)($i['oferta'] ?? 1), $items)));
+    foreach (['1. Descripción', '2. Alcances de la propuesta', $nOf > 1 ? '3. Ofertas comerciales' : '3. Oferta comercial', '4. Condiciones comerciales'] as $ln) { $pdf->text($L, $y, $ln, 10.5); $y += 14.5; }
     $y += 12;
 
     $parrafo('1. DESCRIPCIÓN:', 10.5, true);
@@ -229,9 +233,19 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
     $parrafo((string)$c['alcances']);
     $y += 10;
 
-    // 3. Oferta comercial
+    // 3. Oferta comercial (una o dos ofertas)
+    $porOferta = [];
+    foreach ($items as $it) $porOferta[((int)($it['oferta'] ?? 1)) ?: 1][] = $it;
+    ksort($porOferta);
+    $ofertas = [];
+    foreach ($porOferta as $n => $its) {
+        $ofertas[] = $n === 2
+            ? ['n' => 2, 'titulo' => (string)($c['titulo2'] ?? ''), 'items' => $its, 'mano' => $c['mano_obra2'] ?? 0, 'iva' => $c['iva2'] ?? 0, 'total' => $c['total2'] ?? 0]
+            : ['n' => 1, 'titulo' => (string)($c['titulo1'] ?? ''), 'items' => $its, 'mano' => $c['mano_obra'], 'iva' => $c['iva'], 'total' => $c['total']];
+    }
+    $varias = count($ofertas) > 1;
     $asegurar(120);
-    $parrafo('3. OFERTA COMERCIAL:', 10.5, true);
+    $parrafo($varias ? '3. OFERTAS COMERCIALES:' : '3. OFERTA COMERCIAL:', 10.5, true);
     $y += 4;
     $tw = [200.0, 40.0, 80.0, 80.0]; $tx = ($W - array_sum($tw)) / 2 + $L; $xs = [$tx];
     foreach ($tw as $w) $xs[] = end($xs) + $w;
@@ -241,37 +255,42 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
         foreach (['Item', 'Cant', 'Valor/Unitario', 'Valor/ Total'] as $i => $t) $pdf->text($xs[$i], $y + 11, $t, 9, true, '#ffffff', 'C', $tw[$i]);
         $y += 15;
     };
-    $cab();
-    foreach ($items as $it) {
-        $desc = $pdf->wrap((string)$it['descripcion'], $tw[0] - 8, 9);
-        $h = max(14, count($desc) * 11 + 4);
-        if ($y + $h > $limite) { $nueva(); $cab(); }
-        $pdf->rect($xs[0], $y, array_sum($tw), $h, '', '#000000', 0.5);
-        for ($i = 1; $i < 4; $i++) $pdf->line($xs[$i], $y, $xs[$i], $y + $h, '#000000', 0.4);
-        foreach ($desc as $k => $ln) $pdf->text($xs[0], $y + 10.5 + $k * 11, $ln, 9, false, '#000000', $k === 0 && count($desc) === 1 ? 'C' : 'L', $tw[0]);
-        $pdf->text($xs[1], $y + 10.5, cot_num($it['cantidad']), 9, false, '#000000', 'C', $tw[1]);
-        $pdf->text($xs[2] + 4, $y + 10.5, money($it['valor_unitario']), 9, false, '#000000', 'R', $tw[2] - 8);
-        $pdf->text($xs[3] + 4, $y + 10.5, money($it['valor_total']), 9, false, '#000000', 'R', $tw[3] - 8);
-        $y += $h;
+    foreach ($ofertas as $of) {
+        if ($varias) {
+            $asegurar(70);
+            $parrafo('Oferta ' . $of['n'] . ($of['titulo'] !== '' ? ': ' . $of['titulo'] : ''), 10.5, true);
+            $y += 2;
+        }
+        $cab();
+        foreach ($of['items'] as $it) {
+            $desc = $pdf->wrap((string)$it['descripcion'], $tw[0] - 8, 9);
+            $h = max(14, count($desc) * 11 + 4);
+            if ($y + $h > $limite) { $nueva(); $cab(); }
+            $pdf->rect($xs[0], $y, array_sum($tw), $h, '', '#000000', 0.5);
+            for ($i = 1; $i < 4; $i++) $pdf->line($xs[$i], $y, $xs[$i], $y + $h, '#000000', 0.4);
+            foreach ($desc as $k => $ln) $pdf->text($xs[0], $y + 10.5 + $k * 11, $ln, 9, false, '#000000', $k === 0 && count($desc) === 1 ? 'C' : 'L', $tw[0]);
+            $pdf->text($xs[1], $y + 10.5, cot_num($it['cantidad']), 9, false, '#000000', 'C', $tw[1]);
+            $pdf->text($xs[2] + 4, $y + 10.5, money($it['valor_unitario']), 9, false, '#000000', 'R', $tw[2] - 8);
+            $pdf->text($xs[3] + 4, $y + 10.5, money($it['valor_total']), 9, false, '#000000', 'R', $tw[3] - 8);
+            $y += $h;
+        }
+        $asegurar(70);
+        $extra = [];
+        if ((float)$of['mano'] > 0) $extra[] = ['Mano de Obra', $of['mano']];
+        foreach ($extra as [$lbl, $v]) {
+            $pdf->rect($xs[0], $y, array_sum($tw), 14, '', '#000000', 0.5);
+            $pdf->line($xs[3], $y, $xs[3], $y + 14, '#000000', 0.4);
+            $pdf->text($xs[0] + 3, $y + 10.5, $lbl, 9);
+            $pdf->text($xs[3] + 4, $y + 10.5, money($v), 9, false, '#000000', 'R', $tw[3] - 8);
+            $y += 14;
+        }
+        $y += 8;
+        $pdf->rect($xs[0], $y, array_sum($tw), 16, '', '#000000', 1.4);
+        $pdf->line($xs[3], $y, $xs[3], $y + 16, '#000000', 1.0);
+        $pdf->text($xs[0], $y + 12, $varias ? 'Total oferta ' . $of['n'] : 'Total', 10, false, '#000000', 'C', $tw[0] + $tw[1] + $tw[2]);
+        $pdf->text($xs[3] + 4, $y + 12, money($of['total']), 10, true, '#000000', 'R', $tw[3] - 8);
+        $y += 34;
     }
-    $asegurar(70);
-    $extra = [];
-    if ((float)$c['mano_obra'] > 0) $extra[] = ['Mano de Obra', $c['mano_obra'], false];
-    if ((float)$c['iva'] > 0) $extra[] = ['IVA ' . cot_num($c['iva_pct']) . '%', $c['iva'], false];
-    foreach ($extra as [$lbl, $v]) {
-        $pdf->rect($xs[0], $y, array_sum($tw), 14, '', '#000000', 0.5);
-        $pdf->line($xs[3], $y, $xs[3], $y + 14, '#000000', 0.4);
-        $pdf->text($xs[0] + 3, $y + 10.5, $lbl, 9);
-        $pdf->text($xs[3] + 4, $y + 10.5, money($v), 9, false, '#000000', 'R', $tw[3] - 8);
-        $y += 14;
-    }
-    $y += 8;
-    $pdf->rect($xs[0], $y, array_sum($tw), 16, '', '#000000', 1.4);
-    $pdf->line($xs[3], $y, $xs[3], $y + 16, '#000000', 1.0);
-    $pdf->text($xs[0], $y + 12, 'Total', 10, false, '#000000', 'C', $tw[0] + $tw[1] + $tw[2]);
-    $pdf->text($xs[3] + 4, $y + 12, money($c['total']), 10, true, '#000000', 'R', $tw[3] - 8);
-    $y += 34;
-
     // 4. Condiciones comerciales
     $asegurar(110);
     $parrafo('4. CONDICIONES COMERCIALES:', 10.5, true);

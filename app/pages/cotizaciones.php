@@ -58,7 +58,7 @@ $qs = array_filter(['p' => 'cotizaciones', 'estado' => $estado, 'formato' => get
         <td><a class="row-link fw-normal" href="<?= url('cotizacion', ['id' => $r['id']]) ?>"><?= e($r['cliente_nombre']) ?></a><?= $r['atencion'] ? '<br><small class="muted">' . e($r['atencion']) . '</small>' : '' ?></td>
         <td class="small muted"><?= $r['formato'] === 'propuesta' ? 'Propuesta' : 'Con ítems' ?></td>
         <td class="c"><?= (int)$r['n_items'] ?></td>
-        <td class="r nowrap"><?= money($r['total']) ?></td>
+        <td class="r nowrap"><?= e(cot_total_texto($r)) ?></td>
         <td><?= badge($r['estado']) ?></td>
         <td class="nowrap small muted"><?= $r['enviada'] ? fdate($r['enviada'], true) : '—' ?></td>
         <td class="r nowrap">

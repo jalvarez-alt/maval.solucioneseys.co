@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'cot_nombre' => post('cot_nombre'), 'cot_direccion' => post('cot_direccion'), 'cot_telefonos' => post('cot_telefonos'), 'cot_email' => post('cot_email'), 'cot_web' => post('cot_web'),
             'cot_ciudad' => post('cot_ciudad'), 'cot_firmante' => post('cot_firmante'), 'cot_cargo' => post('cot_cargo'), 'cot_firma_lineas' => post('cot_firma_lineas'),
             'cot_validez' => post('cot_validez'), 'cot_entrega' => post('cot_entrega'), 'cot_pago' => post('cot_pago'),
-            'cot_iva' => (string)max(0, min(100, (float)parse_money(post('cot_iva', '0')))), 'cot_inicio' => (string)max(1, (int)post('cot_inicio', 1)),
+            'cot_inicio' => (string)max(1, (int)post('cot_inicio', 1)),
         ];
         foreach ($mapa as $k => $v) ajuste_set($k, $v === null ? null : (string)$v);
         if ((string)($_POST['cot_smtp_clave'] ?? '') !== '') ajuste_set('cot_smtp_clave', secreto_cifrar((string)$_POST['cot_smtp_clave']));
@@ -114,7 +114,6 @@ $personalizado = (bool)(glob(UPLOAD_DIR . '/cot_banner.*') ?: []);
         <div><label class="form-label">Validez de la oferta / vigencia</label><input class="form-control" name="cot_validez" value="<?= e($em['validez']) ?>"></div>
         <div><label class="form-label">Tiempo de entrega</label><input class="form-control" name="cot_entrega" value="<?= e($em['entrega']) ?>"></div>
         <div><label class="form-label">Forma de pago</label><input class="form-control" name="cot_pago" value="<?= e($em['pago']) ?>"></div>
-        <div><label class="form-label">IVA % por defecto</label><input class="form-control" name="cot_iva" value="<?= e($em['iva']) ?>" inputmode="decimal"><div class="form-text">0 si no cobra IVA.</div></div>
         <div><label class="form-label">Iniciar el consecutivo en</label><input class="form-control" type="number" min="1" name="cot_inicio" value="<?= (int)ajuste('cot_inicio', 1) ?>"><div class="form-text">Próximo número: <strong><?= cot_siguiente() ?></strong>. El consecutivo es único para ambos formatos y nunca retrocede por debajo del último emitido.</div></div>
       </div>
       <div class="form-actions"><button class="btn btn-primary">Guardar configuración</button></div>

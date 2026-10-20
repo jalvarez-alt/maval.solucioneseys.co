@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.4.0');
-define('DB_VERSION', 4);
+define('APP_VERSION', '1.5.0');
+define('DB_VERSION', 5);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -129,8 +129,18 @@ function migrar(): void
     }
     if ($v < 3) migrar_v3($run, $eng);
     if ($v < 4) migrar_v4($run, $eng);
+    if ($v < 5) migrar_v5($run);
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
+}
+
+/** v5: segunda oferta comercial en las propuestas. */
+function migrar_v5(callable $run): void
+{
+    $run('ALTER TABLE cotizacion_items ADD COLUMN oferta TINYINT NOT NULL DEFAULT 1', true);
+    foreach (['titulo1 VARCHAR(100) NULL', 'titulo2 VARCHAR(100) NULL', 'mano_obra2 DECIMAL(15,2) NOT NULL DEFAULT 0', 'subtotal2 DECIMAL(15,2) NOT NULL DEFAULT 0', 'iva2 DECIMAL(15,2) NOT NULL DEFAULT 0', 'total2 DECIMAL(15,2) NOT NULL DEFAULT 0'] as $col) {
+        $run('ALTER TABLE cotizaciones ADD COLUMN ' . $col, true);
+    }
 }
 
 /** v4: módulo de cotizaciones (encabezado e ítems). */

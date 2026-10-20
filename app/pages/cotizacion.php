@@ -7,6 +7,12 @@ $items = cot_items($id);
 $title = 'Cotización No. ' . $c['consecutivo'];
 $em = cot_emisor();
 $esProp = $c['formato'] === 'propuesta';
+// Una o dos ofertas (solo las propuestas pueden tener dos)
+$ofertas = [1 => ['titulo' => $c['titulo1'] ?? '', 'mano' => $c['mano_obra'], 'sub' => $c['subtotal'], 'iva' => $c['iva'], 'total' => $c['total'], 'items' => []]];
+foreach ($items as $it) {
+    if ((int)$it['oferta'] === 2 && !isset($ofertas[2])) $ofertas[2] = ['titulo' => $c['titulo2'] ?? '', 'mano' => $c['mano_obra2'], 'sub' => $c['subtotal2'], 'iva' => $c['iva2'], 'total' => $c['total2'], 'items' => []];
+    $ofertas[(int)$it['oferta'] === 2 ? 2 : 1]['items'][] = $it;
+}
 
 // PDF: vista en la pestaña o descarga
 if (get('pdf')) cot_pdf($c, $items)->download(cot_archivo($c), get('pdf') === 'ver');
@@ -24,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdf = cot_pdf($c, $items);
             $cuerpo = '<div style="white-space:pre-wrap;margin:0 0 12px">' . e($mensaje) . '</div>'
                 . correo_ficha(['Cotización No.' => '<strong>' . (int)$c['consecutivo'] . '</strong>', 'Cliente' => e($c['cliente_nombre']), 'Fecha' => e(fdate($c['fecha'])),
-                    'Total' => '<strong>' . e(money($c['total'])) . '</strong>', ($esProp ? 'Vigencia de tarifas' : 'Validez de la oferta') => e($c['validez'] ?? '')])
+                    (count($ofertas) > 1 ? 'Totales (oferta 1 / oferta 2)' : 'Total') => '<strong>' . e(cot_total_texto($c)) . '</strong>', ($esProp ? 'Vigencia de tarifas' : 'Validez de la oferta') => e($c['validez'] ?? '')])
                 . '<p style="margin:12px 0 0;color:#64748b;font-size:13px">Adjuntamos la cotización en formato PDF.</p>';
             $res = enviar_correo($para, $asunto, correo_plantilla('Cotización No. ' . $c['consecutivo'], $cuerpo), [
                 'cuenta' => 'cot', 'motivo' => 'cotizacion',
@@ -69,25 +75,26 @@ $msgDef = "Cordial saludo" . ($c['atencion'] ? ', ' . $c['atencion'] : '') . ".\
 
 <div class="detail-grid">
   <div>
+    <?php foreach ($ofertas as $o => $of): ?>
     <div class="panel">
-      <div class="panel-h"><h3><?= $esProp ? 'Oferta comercial' : 'Ítems' ?></h3></div>
+      <div class="panel-h"><h3><?= $esProp ? (count($ofertas) > 1 ? 'Oferta ' . $o . ($of['titulo'] ? ': ' . e($of['titulo']) : '') : 'Oferta comercial') : 'Ítems' ?></h3></div>
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th class="c">#</th><?php if (!$esProp): ?><th>Referencia</th><?php endif; ?><th><?= $esProp ? 'Ítem' : 'Descripción' ?></th><?php if (!$esProp): ?><th>Marca</th><th>Unidad</th><?php endif; ?><th class="c">Cant</th><th class="r">Valor unit.</th><th class="r">Valor total</th></tr></thead>
         <tbody>
-        <?php foreach ($items as $k => $it): ?>
+        <?php foreach ($of['items'] as $k => $it): ?>
           <tr><td class="c muted"><?= $k + 1 ?></td><?php if (!$esProp): ?><td><?= e($it['referencia'] ?: '—') ?></td><?php endif; ?><td><?= e($it['descripcion']) ?></td>
             <?php if (!$esProp): ?><td><?= e($it['marca'] ?: '—') ?></td><td><?= e($it['unidad'] ?: '—') ?></td><?php endif; ?>
             <td class="c"><?= e(cot_num($it['cantidad'])) ?></td><td class="r nowrap"><?= money($it['valor_unitario']) ?></td><td class="r nowrap"><?= money($it['valor_total']) ?></td></tr>
         <?php endforeach; ?>
         </tbody>
         <tfoot>
-          <?php if ((float)$c['mano_obra'] > 0): ?><tr><td colspan="<?= $esProp ? 4 : 7 ?>" class="r muted">Mano de obra</td><td class="r"><?= money($c['mano_obra']) ?></td></tr><?php endif; ?>
-          <?php if ((float)$c['iva'] > 0): ?><tr><td colspan="<?= $esProp ? 4 : 7 ?>" class="r muted">Subtotal</td><td class="r"><?= money($c['subtotal'] + $c['mano_obra']) ?></td></tr>
-            <tr><td colspan="<?= $esProp ? 4 : 7 ?>" class="r muted">IVA <?= e(cot_num($c['iva_pct'])) ?>%</td><td class="r"><?= money($c['iva']) ?></td></tr><?php endif; ?>
-          <tr><td colspan="<?= $esProp ? 4 : 7 ?>" class="r fw-bold">TOTAL</td><td class="r fw-bold"><?= money($c['total']) ?></td></tr>
+          <?php $cs = $esProp ? 4 : 7; ?>
+          <?php if ((float)$of['mano'] > 0): ?><tr><td colspan="<?= $cs ?>" class="r muted">Mano de obra</td><td class="r"><?= money($of['mano']) ?></td></tr><?php endif; ?>
+          <tr><td colspan="<?= $cs ?>" class="r fw-bold">TOTAL<?= count($ofertas) > 1 ? ' OFERTA ' . $o : '' ?></td><td class="r fw-bold"><?= money($of['total']) ?></td></tr>
         </tfoot>
       </table></div>
     </div>
+    <?php endforeach; ?>
     <?php if ($esProp): ?>
     <div class="panel">
       <div class="panel-h"><h3>1. Descripción</h3></div><div class="msg-b mb-3"><?= e($c['descripcion'] ?: '—') ?></div>
