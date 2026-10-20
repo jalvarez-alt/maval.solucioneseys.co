@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'fecha' => valid_date(post('fecha')), 'ciudad' => post('ciudad'), 'empresa_id' => post('empresa_id') ? (int)post('empresa_id') : null,
         'cliente_nombre' => (string)post('cliente_nombre', ''), 'cliente_nit' => post('cliente_nit'), 'cliente_direccion' => post('cliente_direccion'),
         'cliente_telefono' => post('cliente_telefono'), 'cliente_email' => post('cliente_email'), 'atencion' => post('atencion'),
-        'descripcion' => $esProp ? post('descripcion') : null, 'alcances' => $esProp ? post('alcances') : null,
+        'descripcion' => $esProp ? post('descripcion') : null, 'alcances' => $esProp ? cot_rich_normalizar((string)($_POST['alcances'] ?? '')) : null,
         'titulo1' => $esProp ? post('titulo1') : null, 'titulo2' => $oferta2 ? post('titulo2') : null, 'sumar_ofertas' => $oferta2 && post('sumar_ofertas') ? 1 : 0, 'sumar1' => post('sumar_1') ? 1 : 0, 'sumar2' => $oferta2 && post('sumar_2') ? 1 : 0,
         'validez' => post('validez'), 'tiempo_entrega' => post('tiempo_entrega'), 'forma_pago' => post('forma_pago'), 'notas' => post('notas'),
     ];
@@ -148,6 +148,11 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
   .cot-items th, .cot-items td { vertical-align: top; }
   .cot-items textarea, .cot-items input { font-size: 13px; }
   .cot-prop .col-ref, .cot-prop .col-marca, .cot-prop .col-uni { display: none; }
+  .rt-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .rt-bar select { width: auto; min-width: 140px; }
+  .rt-editor { min-height: 110px; height: auto; overflow: auto; font-size: 10.5pt; line-height: 1.4; }
+  .rt-editor:empty:before { content: attr(data-placeholder); color: #8a94a3; }
+  .rt-editor p { margin: 0 0 4px; } .rt-editor ul, .rt-editor ol { margin: 0 0 4px; padding-left: 22px; }
 </style>
 <form method="post" class="panel <?= $esProp ? 'cot-prop' : '' ?>" style="max-width:1100px" id="cot">
   <?= csrf_field() ?>
@@ -174,7 +179,17 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
   <h6 class="sec">1. Descripción</h6>
   <textarea class="form-control" name="descripcion" rows="3" placeholder="En qué consiste la solución"><?= e($v['descripcion']) ?></textarea>
   <h6 class="sec">2. Alcances de la propuesta</h6>
-  <textarea class="form-control" name="alcances" rows="3" placeholder="Qué incluye y cómo queda funcionando"><?= e($v['alcances']) ?></textarea>
+  <div class="rt-bar" id="rt-bar">
+    <select class="form-select form-select-sm" id="rt-fuente" title="Tipo de letra"><option value="">Tipo de letra</option><option value="Arial">Arial</option><option value="Times New Roman">Times New Roman</option><option value="Courier New">Courier New</option></select>
+    <select class="form-select form-select-sm" id="rt-tam" title="Tamaño de letra"><option value="">Tamaño</option><option value="8">8</option><option value="9">9</option><option value="10.5">10,5 (normal)</option><option value="12">12</option><option value="14">14</option><option value="16">16</option><option value="20">20</option></select>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bold" title="Negrilla"><i class="bi bi-type-bold"></i></button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="insertUnorderedList" title="Viñetas"><i class="bi bi-list-ul"></i></button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="insertOrderedList" title="Numeración"><i class="bi bi-list-ol"></i></button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="removeFormat" title="Quitar formato"><i class="bi bi-eraser"></i></button>
+  </div>
+  <div id="rt-editor" class="form-control rt-editor" contenteditable="true" data-placeholder="Qué incluye y cómo queda funcionando"><?= cot_rich_html($v['alcances']) ?></div>
+  <input type="hidden" name="alcances" id="rt-valor">
+  <div class="form-text">Seleccione el texto y use la barra: negrilla, tipo y tamaño de letra, viñetas y numeración. Se respeta tal cual en el PDF.</div>
   <h6 class="sec">3. Oferta comercial</h6>
   <input type="hidden" name="oferta2" id="oferta2" value="<?= $oferta2 ? '1' : '0' ?>">
   <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -281,6 +296,27 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
   }
   document.addEventListener('input', function (e) { if (e.target.matches('#cot input, #cot textarea')) { if (e.target.tagName === 'TEXTAREA') fit(e.target); recalc(); } });
   Array.prototype.forEach.call(document.querySelectorAll('.cot-items textarea'), fit);
+  // Editor de texto con formato (Alcances de la propuesta)
+  var rt = document.getElementById('rt-editor');
+  if (rt) {
+    var bar = document.getElementById('rt-bar');
+    bar.addEventListener('mousedown', function (e) { if (e.target.closest('button')) e.preventDefault(); });   // no perder la selección
+    bar.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      rt.focus(); document.execCommand(b.getAttribute('data-cmd'), false, null);
+    });
+    document.getElementById('rt-fuente').addEventListener('change', function () { if (!this.value) return; rt.focus(); document.execCommand('fontName', false, this.value); this.value = ''; });
+    document.getElementById('rt-tam').addEventListener('change', function () {
+      var pt = this.value; this.value = ''; if (!pt) return;
+      rt.focus(); document.execCommand('fontSize', false, '7');
+      Array.prototype.forEach.call(rt.querySelectorAll('font[size="7"]'), function (f) {
+        var s = document.createElement('span'); s.style.fontSize = pt + 'pt';
+        while (f.firstChild) s.appendChild(f.firstChild); f.parentNode.replaceChild(s, f);
+      });
+    });
+    rt.addEventListener('paste', function (e) { e.preventDefault(); var t = (e.clipboardData || window.clipboardData).getData('text/plain'); document.execCommand('insertText', false, t); });
+    document.getElementById('cot').addEventListener('submit', function () { document.getElementById('rt-valor').value = rt.innerHTML; });
+  }
   recalc();
 })();
 </script>

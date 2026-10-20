@@ -1,6 +1,6 @@
 # MAVAL — contexto del proyecto
 
-Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-18 (v1.7.0 en local; producción en v1.6.0 hasta que se despliegue).
+Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-18 (v1.8.0 en local; producción en v1.7.0 hasta que se despliegue).
 
 ## Qué es
 Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda (tickets) con avisos por correo, inventario de cómputo y otros equipos (incluye aires acondicionados), planeador de mantenimiento preventivo, roles y permisos, cotizaciones con PDF y envío por correo, gastos, presupuesto, cartera (facturas y abonos) y entradas de dinero. Producción: https://maval.solucioneseys.co (Namecheap, cPanel).
@@ -27,7 +27,7 @@ Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda 
 ## Estructura
 - `index.php`: enrutador. `?p=<pagina>` carga `app/pages/<pagina>.php` (lista blanca en el propio `index.php`), exige login y valida CSRF.
 - `login.php`, `logout.php`, `instalar.php` (instalador; en producción ya se eliminó la ejecución, aquí queda `instalar.php.old`), `archivo.php` (entrega de adjuntos con permiso).
-- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.7.0, `DB_VERSION` 7. Función `q()` para consultas preparadas, `db()` para el PDO.
+- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.8.0, `DB_VERSION` 7. Función `q()` para consultas preparadas, `db()` para el PDO.
 - `app/pages/`: una página por módulo (tickets, inventario, computo*, importar, mantenimiento*, cotizacion*, usuarios, roles, rol_form, empresas, config_correo, gastos, estadisticas, presupuesto, categorias, cartera, factura*, ingresos, perfil, inicio).
 - `app/computo.php`, `app/importar.php`, `app/masivo.php`: lógica de inventario de cómputo, importación masiva Excel/CSV y acciones masivas.
 - `app/mail.php` (SMTP propio sin dependencias, ajustes en tabla `ajustes`, plantilla HTML, `despues()` envía tras responder), `app/notificaciones.php` (avisos de tickets y recordatorios de mantenimiento), `app/mantenimiento.php` (lógica del planeador), `app/cotizaciones.php` (totales, datos del emisor y PDF de cotizaciones en 2 formatos), `cron.php` (tarea diaria de recordatorios).
@@ -51,6 +51,10 @@ empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos
 - PDF generado con `app/lib/pdf.php`, que ahora soporta imágenes (JPG y PNG 8 bits, con o sin alfa) y `wrap()`. Encabezado por defecto: `assets/img/banner_cotizacion.png`; se puede reemplazar desde *Configurar cotizaciones* (se guarda en `uploads/cot_banner.*`).
 - Se envían por correo con el PDF adjunto desde una **cuenta SMTP propia** (claves `cot_*` en `ajustes`, `correo_config('cot')`), independiente de la de la mesa de ayuda. Permisos: *aprobar* = enviar y cambiar estado; *administrar* = configuración.
 
+## Texto con formato (v1.8.0)
+- «2. Alcances de la propuesta» usa un editor `contenteditable` (barra: tipo de letra Arial/Times/Courier, tamaño, negrilla, viñetas, numeración, quitar formato). `app/richtext.php` reduce el HTML del navegador a un subconjunto seguro (`cot_rich_normalizar`, se guarda en `cotizaciones.alcances`; el texto plano antiguo sigue funcionando), lo muestra (`cot_rich_html`) y lo dibuja en el PDF justificado (`cot_rich_pdf`). `SimplePdf` ahora incluye Times y Courier (`textF`, `widthF`; las medidas de Times son tablas AFM aproximadas).
+- Para dar formato a otro campo (p. ej. Descripción) basta repetir el bloque del editor y usar `cot_rich_pdf` en el PDF.
+
 ## Correo y notificaciones
 - Configuración en *Correo y notificaciones* (SMTP o `mail()`); la contraseña se guarda cifrada con una clave derivada de la config de la BD (si cambia la clave de la BD hay que reescribirla).
 - Tickets: aviso al solicitante al crear, en cada cambio de estado y en cada respuesta pública; aviso al equipo de soporte. Las notas internas no se envían.
@@ -72,7 +76,7 @@ bcrypt, CSRF en formularios, bloqueo tras 8 intentos fallidos (15 min), cierre d
 
 ## Pendientes / notas
 - `.gitignore` ya excluye `app/config.php`, `config.remote.php.bak`, `.vscode/`, `uploads/*`, `error_log`, zips.
-- **Pendiente de desplegar:** v1.7.0 (opción por oferta «Sumar los ítems y mostrar el total» y se quitó el campo Mano de obra; BD v6→v7, se migra sola; archivos: `app/cotizaciones.php`, `app/bootstrap.php`, páginas `cotizacion.php` y `cotizacion_form.php`, `sql/schema.sql`). Seguir el flujo de respaldo + WinSCP descrito arriba.
+- **Pendiente de desplegar:** v1.8.0 (editor con formato en «Alcances de la propuesta»; sin cambios de BD; archivos: `app/richtext.php` (nuevo), `app/cotizaciones.php`, `app/lib/pdf.php`, `app/bootstrap.php`, páginas `cotizacion.php` y `cotizacion_form.php`). Seguir el flujo de respaldo + WinSCP descrito arriba.
 - **Pendiente tras el despliegue v1.4.0 (hacerlo como administrador en producción):** configurar la cuenta de correo de la mesa de ayuda (*Correo y notificaciones*), la de cotizaciones, los datos de la empresa y el consecutivo inicial (*Configurar cotizaciones*), y crear en cPanel el Cron Job diario `php /home/aqreqjec/maval.solucioneseys.co/cron.php`.
 - Al desplegar una versión nueva: subir los archivos modificados (nunca `app/config.php`), entrar como administrador (la BD se migra sola) y hacer antes copia de la BD.
 - Ideas pendientes: permisos por usuario (hoy son por rol), restringir el acceso por IP, reportes de cotizaciones por cliente.

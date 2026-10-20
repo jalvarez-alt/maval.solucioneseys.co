@@ -73,6 +73,53 @@ class SimplePdf
         $this->out(sprintf('BT %s rg /%s %.2F Tf %.2F %.2F Td (%s) Tj ET', self::rgb($color), $bold ? 'F2' : 'F1', $size, $x, $this->h - $y, $e));
     }
 
+    // ---------- Familias de letra (Helvetica/Arial, Times y Courier) ----------
+    private const FUENTES = [
+        'helvetica' => ['F1', 'F2'], 'times' => ['F3', 'F4'], 'courier' => ['F5', 'F6'],
+    ];
+    private const TIMES = [
+        'regular' => '250,333,408,500,500,833,778,180,333,333,500,564,250,333,250,278,500,500,500,500,500,500,500,500,500,500,278,278,564,564,564,444,921,722,667,667,722,611,556,722,722,333,389,722,611,889,722,722,556,722,667,556,611,722,722,944,722,722,611,333,278,333,469,500,333,444,500,444,500,444,333,500,500,278,278,500,278,778,500,500,500,500,333,389,278,500,500,722,500,500,444,480,200,480,541',
+        'bold' => '250,333,555,500,500,1000,833,278,333,333,500,570,250,333,250,278,500,500,500,500,500,500,500,500,500,500,333,333,570,570,570,500,930,722,667,722,722,667,611,778,778,389,500,778,667,944,722,778,611,778,722,556,667,722,722,1000,722,722,667,333,278,333,581,500,333,500,556,444,556,444,333,500,556,278,333,556,278,833,556,500,556,556,444,389,333,556,500,722,500,500,444,394,220,394,520',
+    ];
+
+    /** Ancho de una cadena en la familia indicada (helvetica, times o courier). */
+    public function widthF(string $utf8, float $size, string $fam = 'helvetica', bool $bold = false): float
+    {
+        if ($fam === 'helvetica' || !isset(self::FUENTES[$fam])) return $this->width($utf8, $size, $bold);
+        $w = 0;
+        if ($fam === 'courier') {
+            $w = 600 * strlen(self::enc($utf8));
+        } else {
+            static $t = [];
+            $k = $bold ? 'bold' : 'regular';
+            $t[$k] ??= array_map('intval', explode(',', self::TIMES[$k]));
+            static $base = null;
+            $base ??= array_merge(
+                array_fill_keys(array_map('ord', str_split('ÀÁÂÃÄÅ')), 'A'), ['Ç' => 'C'], array_fill_keys(array_map('ord', str_split('ÈÉÊË')), 'E'), array_fill_keys(array_map('ord', str_split('ÌÍÎÏ')), 'I'));
+            foreach (str_split(self::enc($utf8)) as $c) {
+                $o = ord($c);
+                if ($o >= 32 && $o <= 126) { $w += $t[$k][$o - 32]; continue; }
+                $ch = mb_convert_encoding($c, 'UTF-8', 'Windows-1252');
+                $plano = strtr($ch, ['á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a', 'ã' => 'a', 'å' => 'a', 'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+                    'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'ö' => 'o', 'õ' => 'o', 'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'ñ' => 'n', 'ç' => 'c', 'ý' => 'y', 'ÿ' => 'y',
+                    'Á' => 'A', 'À' => 'A', 'Â' => 'A', 'Ä' => 'A', 'É' => 'E', 'È' => 'E', 'Ê' => 'E', 'Ë' => 'E', 'Í' => 'I', 'Ì' => 'I', 'Î' => 'I', 'Ï' => 'I',
+                    'Ó' => 'O', 'Ò' => 'O', 'Ô' => 'O', 'Ö' => 'O', 'Ú' => 'U', 'Ù' => 'U', 'Û' => 'U', 'Ü' => 'U', 'Ñ' => 'N', 'Ç' => 'C', '•' => '*', '“' => '"', '”' => '"', '‘' => "'", '’' => "'", '–' => '-', '—' => '-']);
+                $p = ord($plano[0] ?? '?');
+                $w += ($p >= 32 && $p <= 126) ? $t[$k][$p - 32] : 500;
+            }
+        }
+        return $w * $size / 1000;
+    }
+
+    /** Texto en la familia indicada. $y es la línea base. */
+    public function textF(float $x, float $y, string $s, float $size, string $fam, bool $bold, string $color): void
+    {
+        if ($s === '') return;
+        $f = (self::FUENTES[$fam] ?? self::FUENTES['helvetica'])[$bold ? 1 : 0];
+        $e = str_replace(['\\', '(', ')', "\r", "\n"], ['\\\\', '\\(', '\\)', '', ' '], self::enc($s));
+        $this->out(sprintf('BT %s rg /%s %.2F Tf %.2F %.2F Td (%s) Tj ET', self::rgb($color), $f, $size, $x, $this->h - $y, $e));
+    }
+
     /** Divide $s en líneas que quepan en $max puntos (respeta los saltos de línea). */
     public function wrap(string $s, float $max, float $size, bool $bold = false): array
     {
@@ -178,9 +225,10 @@ class SimplePdf
         $objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
         $objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
         $objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+        foreach ([5 => 'Times-Roman', 6 => 'Times-Bold', 7 => 'Courier', 8 => 'Courier-Bold'] as $i => $nombre) $objs[$i] = '<< /Type /Font /Subtype /Type1 /BaseFont /' . $nombre . ' /Encoding /WinAnsiEncoding >>';
         $kids = [];
-        $n = 5;
-        $num = 5 + 2 * count($this->pages);
+        $n = 9;
+        $num = 9 + 2 * count($this->pages);
         $xobj = '';
         foreach ($this->imgs as $k => &$im) {
             $im['obj'] = $num++;
@@ -188,7 +236,7 @@ class SimplePdf
             $xobj .= sprintf('/Im%d %d 0 R ', $k, $im['obj']);
         }
         unset($im);
-        $res = '<< /Font << /F1 3 0 R /F2 4 0 R >>' . ($xobj ? ' /XObject << ' . $xobj . '>>' : '') . ' >>';
+        $res = '<< /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R /F5 7 0 R /F6 8 0 R >>' . ($xobj ? ' /XObject << ' . $xobj . '>>' : '') . ' >>';
         foreach ($this->pages as $content) {
             $content = str_replace('{nb}', $nb, $content);
             $stream = function_exists('gzcompress') ? gzcompress($content) : $content;

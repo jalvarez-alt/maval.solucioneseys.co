@@ -5,6 +5,7 @@
  *  - propuesta: carta con descripción, alcances, oferta comercial y condiciones comerciales
  */
 require_once APP_DIR . '/lib/pdf.php';
+require_once APP_DIR . '/richtext.php';
 
 /** Datos de la empresa que cotiza (editables en Cotizaciones → Configuración). */
 function cot_emisor(): array
@@ -285,7 +286,7 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
     $parrafo((string)$c['descripcion']);
     $y += 10;
     $titulo('2. ALCANCES DE PROPUESTA:');
-    $parrafo((string)$c['alcances']);
+    cot_rich_pdf($pdf, (string)$c['alcances'], $y, $L, $W, $asegurar);   // con formato: negrillas, tamaño, tipo de letra y viñetas
     $y += 10;
 
     // 3. Oferta comercial (una o dos ofertas)

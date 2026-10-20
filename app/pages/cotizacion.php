@@ -60,6 +60,7 @@ $activo = correo_activo('cot');
 $asuntoDef = 'Cotización No. ' . $c['consecutivo'] . ' - ' . $em['nombre'];
 $msgDef = "Cordial saludo" . ($c['atencion'] ? ', ' . $c['atencion'] : '') . ".\n\nEn atención a su solicitud, adjuntamos la cotización No. " . $c['consecutivo'] . ". Quedamos atentos a cualquier inquietud.\n\nAtentamente,\n" . $em['firmante'] . "\n" . $em['cargo'] . "\n" . $em['nombre'] . "\n" . $em['telefonos'];
 ?>
+<style>.rt-vista { white-space: normal; } .rt-vista p { margin: 0 0 4px; } .rt-vista ul, .rt-vista ol { margin: 0 0 4px; padding-left: 22px; }</style>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <a class="btn btn-sm btn-outline-secondary" href="<?= url('cotizaciones') ?>"><i class="bi bi-arrow-left"></i> Cotizaciones</a>
   <h2 class="h5 m-0 ms-1">No. <?= (int)$c['consecutivo'] ?> · <?= e($c['cliente_nombre']) ?></h2>
@@ -101,7 +102,7 @@ $msgDef = "Cordial saludo" . ($c['atencion'] ? ', ' . $c['atencion'] : '') . ".\
     <?php if ($esProp): ?>
     <div class="panel">
       <div class="panel-h"><h3>1. Descripción</h3></div><div class="msg-b mb-3"><?= e($c['descripcion'] ?: '—') ?></div>
-      <div class="panel-h"><h3>2. Alcances de la propuesta</h3></div><div class="msg-b"><?= e($c['alcances'] ?: '—') ?></div>
+      <div class="panel-h"><h3>2. Alcances de la propuesta</h3></div><div class="msg-b rt-vista"><?= trim((string)$c['alcances']) !== '' ? cot_rich_html($c['alcances']) : '—' ?></div>
     </div>
     <?php endif; ?>
 
