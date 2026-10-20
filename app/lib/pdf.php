@@ -155,6 +155,16 @@ class SimplePdf
         return ['w' => $w, 'h' => $h, 'cs' => $ct === 6 ? '/DeviceRGB' : '/DeviceGray', 'bpc' => 8, 'filter' => 'FlateDecode', 'data' => gzcompress($color), 'extra' => '', 'smask' => gzcompress($alpha)];
     }
 
+    /** Texto justificado: reparte el espacio sobrante entre las palabras para ocupar exactamente $w puntos. */
+    public function textJ(float $x, float $y, string $s, float $size, bool $bold, string $color, float $w): void
+    {
+        $n = substr_count($s, ' ');
+        $tw = $this->width($s, $size, $bold);
+        if ($n === 0 || $tw >= $w || $tw < $w * 0.55) { $this->text($x, $y, $s, $size, $bold, $color); return; }
+        $e = str_replace(['\\', '(', ')', "\r", "\n"], ['\\\\', '\\(', '\\)', '', ' '], self::enc($s));
+        $this->out(sprintf('BT %s rg /%s %.2F Tf %.3F Tw %.2F %.2F Td (%s) Tj ET', self::rgb($color), $bold ? 'F2' : 'F1', $size, ($w - $tw) / $n, $x, $this->h - $y, $e));
+    }
+
     /** Dibuja una imagen registrada con addImage() en el rectángulo indicado. */
     public function image(array $img, float $x, float $y, float $w, float $h): void
     {

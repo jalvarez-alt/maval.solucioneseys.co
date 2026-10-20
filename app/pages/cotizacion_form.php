@@ -40,7 +40,7 @@ $formato = $c['formato'] ?? ($origen['formato'] ?? $formato);
 $esProp = $formato === 'propuesta';
 $v = $origen ?: [];
 $v += ['fecha' => today(), 'ciudad' => $em['ciudad'], 'empresa_id' => null, 'cliente_nombre' => '', 'cliente_nit' => '', 'cliente_direccion' => '', 'cliente_telefono' => '', 'cliente_email' => '', 'atencion' => '',
-    'descripcion' => '', 'alcances' => '', 'mano_obra' => 0, 'mano_obra2' => 0, 'titulo1' => '', 'titulo2' => '', 'validez' => $em['validez'], 'tiempo_entrega' => $em['entrega'], 'forma_pago' => $em['pago'], 'notas' => ''];
+    'descripcion' => '', 'alcances' => '', 'mano_obra' => 0, 'mano_obra2' => 0, 'titulo1' => '', 'titulo2' => '', 'sumar_ofertas' => 0, 'validez' => $em['validez'], 'tiempo_entrega' => $em['entrega'], 'forma_pago' => $em['pago'], 'notas' => ''];
 if ($copiar && !$c) $v['fecha'] = today();
 $vacio = [['referencia' => '', 'descripcion' => '', 'marca' => '', 'unidad' => 'UND', 'cantidad' => 1, 'valor_unitario' => '']];
 $items = [1 => [], 2 => []];
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'cliente_nombre' => (string)post('cliente_nombre', ''), 'cliente_nit' => post('cliente_nit'), 'cliente_direccion' => post('cliente_direccion'),
         'cliente_telefono' => post('cliente_telefono'), 'cliente_email' => post('cliente_email'), 'atencion' => post('atencion'),
         'descripcion' => $esProp ? post('descripcion') : null, 'alcances' => $esProp ? post('alcances') : null,
-        'titulo1' => $esProp ? post('titulo1') : null, 'titulo2' => $oferta2 ? post('titulo2') : null,
+        'titulo1' => $esProp ? post('titulo1') : null, 'titulo2' => $oferta2 ? post('titulo2') : null, 'sumar_ofertas' => $oferta2 && post('sumar_ofertas') ? 1 : 0,
         'validez' => post('validez'), 'tiempo_entrega' => post('tiempo_entrega'), 'forma_pago' => post('forma_pago'), 'notas' => post('notas'),
     ];
     $its = [1 => [], 2 => []];
@@ -188,6 +188,12 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
       <button type="button" class="btn btn-sm btn-outline-danger ms-auto" id="quitar2"><i class="bi bi-trash me-1"></i>Quitar la oferta 2</button>
     </div>
     <?php cot_tabla_items(2, $items[2], $esProp); cot_bloque_totales(2, $esProp, $v); ?>
+    <div class="alert alert-light border mt-3 mb-0">
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="sumar_ofertas" value="1" id="sumar" <?= !empty($v['sumar_ofertas']) ? 'checked' : '' ?>>
+        <label class="form-check-label fw-semibold" for="sumar">Sumar las dos ofertas</label></div>
+      <div class="small muted">Si lo marca, el PDF agrega al final «TOTAL OFERTA 1 + OFERTA 2». Si no, el cliente ve cada oferta por separado (son alternativas).</div>
+      <div class="mt-1">Total combinado: <strong id="t_suma">$ 0</strong></div>
+    </div>
   </div>
   <button type="button" class="btn btn-outline-primary mt-3" id="agregar2" <?= $oferta2 ? 'hidden' : '' ?>><i class="bi bi-plus-circle me-1"></i>Agregar una segunda oferta comercial</button>
   <?php endif; ?>
@@ -224,6 +230,7 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
   var money = function (n) { return '$ ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'); };
   function tabla(o) { return document.querySelector('table.cot-items[data-o="' + o + '"] tbody'); }
   function recalc() {
+    var tot = {1: 0, 2: 0};
     [1, 2].forEach(function (o) {
       var body = tabla(o); if (!body) return;
       var sub = 0;
@@ -234,8 +241,9 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
       });
       var m = document.querySelector('.mano[data-o="' + o + '"]'), mano = m ? pm(m.value) : 0;
       var set = function (k, val) { var el = document.querySelector('[data-t="' + k + '"][data-o="' + o + '"]'); if (el) el.textContent = money(val); };
-      set('sub', sub); set('tot', sub + mano);
+      set('sub', sub); set('tot', sub + mano); tot[o] = sub + mano;
     });
+    if ($('t_suma')) $('t_suma').textContent = money(tot[1] + tot[2]);
   }
   function fit(t) { t.style.height = 'auto'; t.style.height = Math.max(31, t.scrollHeight) + 'px'; }
   document.addEventListener('click', function (e) {

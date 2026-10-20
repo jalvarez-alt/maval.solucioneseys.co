@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdf = cot_pdf($c, $items);
             $cuerpo = '<div style="white-space:pre-wrap;margin:0 0 12px">' . e($mensaje) . '</div>'
                 . correo_ficha(['Cotización No.' => '<strong>' . (int)$c['consecutivo'] . '</strong>', 'Cliente' => e($c['cliente_nombre']), 'Fecha' => e(fdate($c['fecha'])),
-                    (count($ofertas) > 1 ? 'Totales (oferta 1 / oferta 2)' : 'Total') => '<strong>' . e(cot_total_texto($c)) . '</strong>', ($esProp ? 'Vigencia de tarifas' : 'Validez de la oferta') => e($c['validez'] ?? '')])
+                    (count($ofertas) > 1 ? (!empty($c['sumar_ofertas']) ? 'Total (suma de las 2 ofertas)' : 'Totales (oferta 1 / oferta 2)') : 'Total') => '<strong>' . e(cot_total_texto($c)) . '</strong>', ($esProp ? 'Vigencia de tarifas' : 'Validez de la oferta') => e($c['validez'] ?? '')])
                 . '<p style="margin:12px 0 0;color:#64748b;font-size:13px">Adjuntamos la cotización en formato PDF.</p>';
             $res = enviar_correo($para, $asunto, correo_plantilla('Cotización No. ' . $c['consecutivo'], $cuerpo), [
                 'cuenta' => 'cot', 'motivo' => 'cotizacion',
@@ -95,6 +95,9 @@ $msgDef = "Cordial saludo" . ($c['atencion'] ? ', ' . $c['atencion'] : '') . ".\
       </table></div>
     </div>
     <?php endforeach; ?>
+    <?php if (count($ofertas) > 1 && !empty($c["sumar_ofertas"])): ?>
+    <div class="panel d-flex justify-content-between align-items-center"><strong>TOTAL OFERTA 1 + OFERTA 2</strong><strong class="fs-5"><?= money($c["total"] + $c["total2"]) ?></strong></div>
+    <?php endif; ?>
     <?php if ($esProp): ?>
     <div class="panel">
       <div class="panel-h"><h3>1. Descripción</h3></div><div class="msg-b mb-3"><?= e($c['descripcion'] ?: '—') ?></div>
