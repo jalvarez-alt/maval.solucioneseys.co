@@ -15,8 +15,8 @@ function xlsx_download(string $filename, array $sheets): void
         header('Content-Disposition: attachment; filename="' . preg_replace('/\.xlsx$/', '.csv', $filename) . '"');
         $out = fopen('php://output', 'w');
         fwrite($out, "\xEF\xBB\xBF");
-        fputcsv($out, $s['headers'], ';');
-        foreach ($s['rows'] as $r) fputcsv($out, array_map(fn($v) => is_float($v) ? number_format($v, 2, ',', '') : $v, $r), ';');
+        fputcsv($out, $s['headers'], ';', '"', '');
+        foreach ($s['rows'] as $r) fputcsv($out, array_map(fn($v) => is_float($v) ? number_format($v, 2, ',', '') : $v, $r), ';', '"', '');
         exit;
     }
 

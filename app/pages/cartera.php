@@ -33,11 +33,11 @@ if (get('exportar')) {
     header('Content-Disposition: attachment; filename="cartera_' . date('Ymd') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Empresa', 'Factura', 'Cliente', 'NIT', 'Emisión', 'Vencimiento', 'Días vencida', 'Total', 'Abonado', 'Saldo', 'Estado', 'Concepto'], ';');
+    fputcsv($out, ['Empresa', 'Factura', 'Cliente', 'NIT', 'Emisión', 'Vencimiento', 'Días vencida', 'Total', 'Abonado', 'Saldo', 'Estado', 'Concepto'], ';', '"', '');
     foreach ($rows as $r) {
         $dv = $r['saldo'] > 0.5 && !$r['anulada'] ? max(0, (int)((strtotime($hoy) - strtotime($r['fecha_vencimiento'])) / 86400)) : 0;
         fputcsv($out, [$r['empresa'], $r['numero'], $r['cliente_nombre'], $r['cliente_nit'], $r['fecha_emision'], $r['fecha_vencimiento'], $dv,
-            number_format((float)$r['total'], 2, ',', ''), number_format((float)$r['pagado'], 2, ',', ''), number_format((float)$r['saldo'], 2, ',', ''), factura_estado($r), $r['concepto']], ';');
+            number_format((float)$r['total'], 2, ',', ''), number_format((float)$r['pagado'], 2, ',', ''), number_format((float)$r['saldo'], 2, ',', ''), factura_estado($r), $r['concepto']], ';', '"', '');
     }
     exit;
 }

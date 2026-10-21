@@ -34,8 +34,8 @@ if (get('exportar')) {
     header('Content-Disposition: attachment; filename="gastos_' . $anio . ($mes !== 'todos' ? '_' . str_pad($mes, 2, '0', STR_PAD_LEFT) : '') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Fecha', 'Empresa', 'Categoría', 'Proveedor', 'Concepto', 'Valor', 'Método de pago', 'Referencia', 'Notas'], ';');
-    foreach ($rows as $r) fputcsv($out, [$r['fecha'], $r['empresa'], $r['categoria'], $r['proveedor'], $r['concepto'], number_format((float)$r['valor'], 2, ',', ''), $r['metodo_pago'], $r['referencia'], $r['notas']], ';');
+    fputcsv($out, ['Fecha', 'Empresa', 'Categoría', 'Proveedor', 'Concepto', 'Valor', 'Método de pago', 'Referencia', 'Notas'], ';', '"', '');
+    foreach ($rows as $r) fputcsv($out, [$r['fecha'], $r['empresa'], $r['categoria'], $r['proveedor'], $r['concepto'], number_format((float)$r['valor'], 2, ',', ''), $r['metodo_pago'], $r['referencia'], $r['notas']], ';', '"', '');
     exit;
 }
 

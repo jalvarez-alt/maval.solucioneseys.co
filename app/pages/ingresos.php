@@ -36,8 +36,8 @@ if (get('exportar')) {
     header('Content-Disposition: attachment; filename="entradas_' . $anio . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Fecha', 'Empresa', 'Factura', 'Cliente', 'Método', 'Referencia', 'Valor'], ';');
-    foreach ($rows as $r) fputcsv($out, [$r['fecha'], $r['empresa'], $r['numero'], $r['cliente_nombre'], $r['metodo'], $r['referencia'], number_format((float)$r['valor'], 2, ',', '')], ';');
+    fputcsv($out, ['Fecha', 'Empresa', 'Factura', 'Cliente', 'Método', 'Referencia', 'Valor'], ';', '"', '');
+    foreach ($rows as $r) fputcsv($out, [$r['fecha'], $r['empresa'], $r['numero'], $r['cliente_nombre'], $r['metodo'], $r['referencia'], number_format((float)$r['valor'], 2, ',', '')], ';', '"', '');
     exit;
 }
 $pagos = all($psql . ' LIMIT 300', $pp);
