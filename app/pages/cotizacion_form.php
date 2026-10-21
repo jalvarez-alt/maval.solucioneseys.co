@@ -138,13 +138,17 @@ $empresas = all('SELECT id, nombre, nit, direccion, telefono, email, contacto FR
 function cot_tabla_items(int $o, array $lista, bool $esProp): void
 { ?>
   <div class="tbl-wrap"><table class="tbl cot-items" data-o="<?= $o ?>">
-    <thead><tr><th style="width:34px" class="c">#</th><th class="col-ref" style="width:110px">Referencia</th><th><?= $esProp ? 'Ítem' : 'Descripción' ?></th><th class="col-marca" style="width:110px">Marca</th><th class="col-uni" style="width:86px">Unidad</th>
+    <thead><tr><th style="width:78px" class="c">#</th><th class="col-ref" style="width:110px">Referencia</th><th><?= $esProp ? 'Ítem' : 'Descripción' ?></th><th class="col-marca" style="width:110px">Marca</th><th class="col-uni" style="width:86px">Unidad</th>
       <th style="width:80px">Cant</th><th style="width:130px">Valor unitario</th><th style="width:130px" class="r">Valor total</th><th style="width:36px"></th></tr></thead>
     <tbody>
     <?php foreach ($lista as $it): ?>
       <tr>
-        <td class="c muted n"></td>
-        <td class="col-ref"><input class="form-control form-control-sm" name="it_ref[<?= $o ?>][]" value="<?= e($it['referencia']) ?>" maxlength="60"></td>
+        <td class="c nowrap pos-cell">
+          <input class="form-control form-control-sm text-center pos" type="number" min="1" value="" title="Escriba la posición a la que quiere mover este ítem" aria-label="Posición del ítem">
+          <div class="mover mt-1">
+            <button type="button" class="btn btn-sm btn-light up" title="Subir"><i class="bi bi-chevron-up"></i></button><button type="button" class="btn btn-sm btn-light down" title="Bajar"><i class="bi bi-chevron-down"></i></button><span class="drag" title="Arrastre para cambiar de lugar"><i class="bi bi-grip-vertical"></i></span>
+          </div>
+        </td>        <td class="col-ref"><input class="form-control form-control-sm" name="it_ref[<?= $o ?>][]" value="<?= e($it['referencia']) ?>" maxlength="60"></td>
         <td><textarea class="form-control form-control-sm" name="it_desc[<?= $o ?>][]" rows="1" maxlength="500"><?= e($it['descripcion']) ?></textarea></td>
         <td class="col-marca"><input class="form-control form-control-sm" name="it_marca[<?= $o ?>][]" value="<?= e($it['marca']) ?>" maxlength="60"></td>
         <td class="col-uni"><input class="form-control form-control-sm" name="it_uni[<?= $o ?>][]" list="unidades" value="<?= e($it['unidad']) ?>" maxlength="20"></td>
@@ -187,6 +191,11 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
   .cot-items th, .cot-items td { vertical-align: top; }
   .cot-items textarea, .cot-items input { font-size: 13px; }
   .cot-prop .col-ref, .cot-prop .col-marca, .cot-prop .col-uni { display: none; }
+  .pos { width: 60px; margin: 0 auto; }
+  .mover { display: flex; align-items: center; justify-content: center; gap: 2px; }
+  .mover .btn { padding: 0 6px; line-height: 1.5; }
+  .drag { cursor: grab; color: #8a94a3; padding: 0 2px; }
+  tr.arrastrando { opacity: .45; background: #eef3f9; }
   .rt-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; }
   .rt-bar select { width: auto; min-width: 140px; }
   .rt-editor { min-height: 110px; height: auto; overflow: auto; font-size: 10.5pt; line-height: 1.4; }
@@ -295,7 +304,7 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
       var body = tabla(o); if (!body) return;
       var sub = 0;
       Array.prototype.forEach.call(body.rows, function (r, i) {
-        r.querySelector('.n').textContent = i + 1;
+        var pos = r.querySelector('.pos'); if (pos !== document.activeElement) pos.value = i + 1;   // no pisar lo que se está escribiendo
         var t = pm(r.querySelector('.q').value) * pm(r.querySelector('.vu').value);
         r.querySelector('.vt').textContent = money(t); sub += t;
       });
@@ -333,8 +342,44 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
       $('bloque2').hidden = true; $('agregar2').hidden = false; $('oferta2').value = '0'; recalc();
     });
   }
-  document.addEventListener('input', function (e) { if (e.target.matches('#cot input, #cot textarea')) { if (e.target.tagName === 'TEXTAREA') fit(e.target); recalc(); } });
+  document.addEventListener('input', function (e) { if (e.target.matches('#cot input, #cot textarea') && !e.target.classList.contains('pos')) { if (e.target.tagName === 'TEXTAREA') fit(e.target); recalc(); } });
   Array.prototype.forEach.call(document.querySelectorAll('.cot-items textarea'), fit);
+  // Reordenar ítems: flechas, arrastrar y soltar, o escribir la posición
+  function mover(fila, indice) {   // indice base 1
+    var body = fila.parentNode, otras = Array.prototype.filter.call(body.rows, function (r) { return r !== fila; });
+    indice = Math.max(1, Math.min(otras.length + 1, indice | 0));
+    if (indice > otras.length) body.appendChild(fila); else body.insertBefore(fila, otras[indice - 1]);
+    recalc();
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.up, .down') : null;
+    if (!b) return;
+    var fila = b.closest('tr'), i = Array.prototype.indexOf.call(fila.parentNode.rows, fila) + 1;
+    mover(fila, b.classList.contains('up') ? i - 1 : i + 1);
+    fila.querySelector('textarea').focus();
+  });
+  document.addEventListener('change', function (e) {
+    if (!e.target.classList || !e.target.classList.contains('pos')) return;
+    mover(e.target.closest('tr'), parseInt(e.target.value, 10) || 1);
+  });
+  var arrastrada = null;
+  document.addEventListener('mousedown', function (e) { var h = e.target.closest ? e.target.closest('.drag') : null; if (h) h.closest('tr').draggable = true; });
+  document.addEventListener('dragstart', function (e) {
+    var tr = e.target.closest ? e.target.closest('tr[draggable="true"]') : null;
+    if (!tr) return;
+    arrastrada = tr; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'item'); tr.classList.add('arrastrando');
+  });
+  document.addEventListener('dragover', function (e) {
+    if (!arrastrada) return;
+    var tr = e.target.closest ? e.target.closest('tr') : null;
+    if (!tr || tr === arrastrada || tr.parentNode !== arrastrada.parentNode) return;
+    e.preventDefault();
+    var r = tr.getBoundingClientRect(), despues = e.clientY > r.top + r.height / 2;
+    tr.parentNode.insertBefore(arrastrada, despues ? tr.nextSibling : tr);
+    recalc();
+  });
+  document.addEventListener('dragend', function () { if (arrastrada) { arrastrada.classList.remove('arrastrando'); arrastrada.draggable = false; arrastrada = null; } });
+  document.addEventListener('drop', function (e) { if (arrastrada) e.preventDefault(); });
   // Importar ítems desde un archivo plano (Excel o CSV)
   function filaNueva(body) {
     var vacia = Array.prototype.filter.call(body.rows, function (r) { return !r.querySelector('textarea').value.trim(); })[0];
