@@ -8,6 +8,38 @@ require_perm('cotizaciones', $id ? 'editar' : 'crear');
 $em = cot_emisor();
 $errors = [];
 
+// Plantilla de Excel para importar ítems
+if (get('plantilla')) {
+    require_once APP_DIR . '/lib/xlsx.php';
+    xlsx_download('plantilla_items_cotizacion.xlsx', [
+        ['name' => 'Items', 'headers' => ['Referencia', 'Descripción', 'Marca', 'Unidad', 'Cant', 'Valor unitario'],
+         'rows' => [['ZK-M500', 'Dispositivo biométrico 500 huellas, 500 tarjetas, USB, WiFi', 'ZKTeco', 'UND', 1, 370072], ['', 'Mano de obra (instalación de puntos eléctricos)', '', 'UND', 2, 200000]],
+         'widths' => [14, 60, 16, 10, 8, 16]],
+        ['name' => 'Instrucciones', 'headers' => ['Columna', 'Qué escribir'], 'rows' => [
+            ['Referencia', 'Opcional. Código del producto.'], ['Descripción', 'Obligatoria. Texto del ítem.'], ['Marca', 'Opcional.'], ['Unidad', 'Opcional (UND, M, GLB, HORA…). Vacío = UND.'],
+            ['Cant', 'Cantidad. Vacío = 1.'], ['Valor unitario', 'Número, sin símbolo (se acepta 1.250.000 o 1250000).'],
+            ['', ''], ['Importante', 'Puede importar .xlsx o .csv. Borre las filas de ejemplo antes de subirlo.']], 'widths' => [18, 80]],
+    ]);
+}
+// Lectura del archivo de ítems (la usa el botón «Importar ítems desde archivo»; responde JSON)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('accion') === 'importar_items') {
+    while (ob_get_level()) ob_end_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $f = $_FILES['archivo'] ?? null;
+        $ext = strtolower(pathinfo((string)($f['name'] ?? ''), PATHINFO_EXTENSION));
+        if (!$f || ($f['error'] ?? 1) !== UPLOAD_ERR_OK) throw new RuntimeException('Seleccione el archivo.');
+        if ($f['size'] > 5 * 1024 * 1024) throw new RuntimeException('El archivo supera 5 MB.');
+        if ($ext === 'xls') throw new RuntimeException('El formato .xls antiguo no es compatible: guárdelo como .xlsx o .csv.');
+        [$its, $avisos] = cot_importar_items($f['tmp_name'], $ext);
+        echo json_encode(['ok' => true, 'items' => array_map(fn($i) => ['referencia' => $i['referencia'], 'descripcion' => $i['descripcion'], 'marca' => $i['marca'], 'unidad' => $i['unidad'],
+            'cantidad' => cot_num($i['cantidad']), 'valor_unitario' => (string)(float)$i['valor_unitario']], $its), 'avisos' => $avisos], JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        echo json_encode(['ok' => false, 'error' => $e instanceof RuntimeException ? $e->getMessage() : 'No se pudo leer el archivo: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 // Al crear sin elegir formato: se muestra el selector
 $formato = $c['formato'] ?? (string)get('formato', '');
 if (!$c && !$copiar && !isset(COT_FORMATOS[$formato])) {
@@ -124,7 +156,14 @@ function cot_tabla_items(int $o, array $lista, bool $esProp): void
     <?php endforeach; ?>
     </tbody>
   </table></div>
-  <button type="button" class="btn btn-sm btn-outline-primary mt-2 add" data-o="<?= $o ?>"><i class="bi bi-plus-lg me-1"></i>Agregar ítem</button>
+  <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+    <button type="button" class="btn btn-sm btn-outline-primary add" data-o="<?= $o ?>"><i class="bi bi-plus-lg me-1"></i>Agregar ítem</button>
+    <label class="btn btn-sm btn-outline-secondary mb-0" title="Excel (.xlsx) o CSV con las columnas Referencia, Descripción, Marca, Unidad, Cant y Valor unitario"><i class="bi bi-file-earmark-arrow-up me-1"></i>Importar ítems desde archivo
+      <input type="file" class="d-none imp-file" data-o="<?= $o ?>" accept=".xlsx,.csv,.txt"></label>
+    <select class="form-select form-select-sm imp-modo" data-o="<?= $o ?>" style="width:auto" title="Qué hacer con los ítems que ya están en la tabla"><option value="agregar">Agregar al final</option><option value="reemplazar">Reemplazar los actuales</option></select>
+    <a class="small" href="<?= url('cotizacion_form', ['plantilla' => 1]) ?>">Descargar plantilla</a>
+  </div>
+  <div class="small mt-1" id="imp-msg-<?= $o ?>"></div>
 <?php }
 
 /** Totales de una oferta. */
@@ -296,6 +335,44 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
   }
   document.addEventListener('input', function (e) { if (e.target.matches('#cot input, #cot textarea')) { if (e.target.tagName === 'TEXTAREA') fit(e.target); recalc(); } });
   Array.prototype.forEach.call(document.querySelectorAll('.cot-items textarea'), fit);
+  // Importar ítems desde un archivo plano (Excel o CSV)
+  function filaNueva(body) {
+    var vacia = Array.prototype.filter.call(body.rows, function (r) { return !r.querySelector('textarea').value.trim(); })[0];
+    if (vacia) return vacia;
+    var r = body.rows[body.rows.length - 1].cloneNode(true);
+    Array.prototype.forEach.call(r.querySelectorAll('input,textarea'), function (i) { i.value = ''; });
+    body.appendChild(r); return r;
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.imp-file'), function (inp) {
+    inp.addEventListener('change', function () {
+      var o = inp.getAttribute('data-o'), msg = document.getElementById('imp-msg-' + o), file = inp.files[0];
+      if (!file) return;
+      var modo = document.querySelector('.imp-modo[data-o="' + o + '"]').value;
+      if (modo === 'reemplazar' && !confirm('Se reemplazarán los ítems actuales de esta oferta por los del archivo. ¿Continuar?')) { inp.value = ''; return; }
+      var fd = new FormData();
+      fd.append('_csrf', document.querySelector('#cot input[name=_csrf]').value); fd.append('accion', 'importar_items'); fd.append('archivo', file);
+      msg.className = 'small mt-1 muted'; msg.textContent = 'Leyendo el archivo…';
+      fetch('index.php?p=cotizacion_form', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          inp.value = '';
+          if (!j.ok) { msg.className = 'small mt-1 text-danger'; msg.textContent = j.error; return; }
+          var body = tabla(o);
+          if (modo === 'reemplazar') { while (body.rows.length > 1) body.deleteRow(-1); Array.prototype.forEach.call(body.rows[0].querySelectorAll('input,textarea'), function (i) { i.value = ''; }); }
+          j.items.forEach(function (it) {
+            var r = filaNueva(body);
+            r.querySelector('[name^="it_ref"]').value = it.referencia; r.querySelector('textarea').value = it.descripcion;
+            r.querySelector('[name^="it_marca"]').value = it.marca; r.querySelector('[name^="it_uni"]').value = it.unidad;
+            r.querySelector('.q').value = it.cantidad; r.querySelector('.vu').value = it.valor_unitario;
+          });
+          Array.prototype.forEach.call(body.querySelectorAll('textarea'), fit);
+          recalc();
+          msg.className = 'small mt-1 ' + (j.avisos.length ? 'text-warning-emphasis' : 'text-success');
+          msg.textContent = j.items.length + ' ítem(s) importado(s). Revise y guarde la cotización.' + (j.avisos.length ? ' Avisos: ' + j.avisos.slice(0, 5).join(' ') + (j.avisos.length > 5 ? ' (y ' + (j.avisos.length - 5) + ' más)' : '') : '');
+        })
+        .catch(function () { inp.value = ''; msg.className = 'small mt-1 text-danger'; msg.textContent = 'No se pudo importar el archivo.'; });
+    });
+  });
   // Editor de texto con formato (Alcances de la propuesta)
   var rt = document.getElementById('rt-editor');
   if (rt) {

@@ -41,6 +41,71 @@ function cot_totales(array $items, float $manoObra): array
     return ['subtotal' => $sub, 'total' => round($sub + $manoObra, 2)];
 }
 
+/** Normaliza un encabezado: minúsculas, sin tildes ni símbolos. */
+function cot_norm($s): string
+{
+    $s = mb_strtolower(trim((string)$s));
+    $s = strtr($s, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n']);
+    return trim(preg_replace('/[^a-z0-9]+/', ' ', $s));
+}
+
+/** Número de una celda de Excel/CSV: acepta 1.250.000, 1250000,50, $ 400.000, etc. */
+function cot_numero($v): float
+{
+    if (is_int($v) || is_float($v)) return (float)$v;
+    return (float)parse_money((string)$v);
+}
+
+/**
+ * Lee un archivo plano (.xlsx o .csv) con las columnas Referencia, Descripción, Marca, Unidad, Cant y Valor unitario.
+ * Reconoce los encabezados por nombre (en cualquier orden); si no hay encabezados usa ese orden. Devuelve [items, avisos].
+ */
+function cot_importar_items(string $ruta, string $ext): array
+{
+    require_once APP_DIR . '/lib/xlsx_read.php';
+    $filas = leer_tabla($ruta, $ext, 'Items');
+    $alias = [
+        'referencia' => ['referencia', 'ref', 'codigo', 'cod', 'sku', 'item codigo'],
+        'descripcion' => ['descripcion', 'item', 'detalle', 'producto', 'concepto', 'articulo', 'nombre'],
+        'marca' => ['marca', 'fabricante'],
+        'unidad' => ['unidad', 'und', 'u m', 'um', 'unidad de medida'],
+        'cantidad' => ['cant', 'cantidad', 'cantid', 'qty', 'unidades'],
+        'valor_unitario' => ['valor unitario', 'valor unit', 'vr unitario', 'vlr unitario', 'precio unitario', 'precio', 'costo', 'valor', 'v unitario'],
+    ];
+    $mapa = []; $fila0 = -1;
+    foreach (array_slice($filas, 0, 10, true) as $i => $f) {
+        $m = [];
+        foreach ($f as $c => $h) {
+            $n = cot_norm($h);
+            if ($n === '') continue;
+            foreach ($alias as $campo => $lista) if (!isset($m[$campo]) && in_array($n, $lista, true)) { $m[$campo] = $c; break; }
+        }
+        if (isset($m['descripcion']) && count($m) > count($mapa)) { $mapa = $m; $fila0 = $i; }
+    }
+    if (!$mapa) {   // sin encabezados: orden de la plantilla
+        $mapa = ['referencia' => 0, 'descripcion' => 1, 'marca' => 2, 'unidad' => 3, 'cantidad' => 4, 'valor_unitario' => 5];
+        $fila0 = -1;
+        if (!$filas || count($filas[0]) < 2) throw new RuntimeException('No se reconocieron las columnas. Use la plantilla: Referencia, Descripción, Marca, Unidad, Cant, Valor unitario.');
+    }
+    $items = []; $avisos = [];
+    foreach ($filas as $i => $f) {
+        if ($i <= $fila0) continue;
+        $g = fn($k) => isset($mapa[$k]) ? ($f[$mapa[$k]] ?? '') : '';
+        if (implode('', array_map(fn($v) => trim((string)$v), $f)) === '') continue;
+        $desc = trim((string)$g('descripcion'));
+        if ($desc === '') { $avisos[] = 'Fila ' . ($i + 1) . ': sin descripción, se omitió.'; continue; }
+        $cant = trim((string)$g('cantidad')) === '' ? 1.0 : cot_numero($g('cantidad'));
+        $vu = cot_numero($g('valor_unitario'));
+        if ($cant <= 0) { $avisos[] = 'Fila ' . ($i + 1) . ': cantidad no válida (' . $g('cantidad') . '), se usó 1.'; $cant = 1.0; }
+        if ($vu < 0) { $avisos[] = 'Fila ' . ($i + 1) . ': valor unitario negativo, se usó 0.'; $vu = 0.0; }
+        if (count($items) >= 500) { $avisos[] = 'Se importaron los primeros 500 ítems; el resto se omitió.'; break; }
+        $items[] = ['referencia' => mb_substr(trim((string)$g('referencia')), 0, 60), 'descripcion' => mb_substr($desc, 0, 500), 'marca' => mb_substr(trim((string)$g('marca')), 0, 60),
+            'unidad' => mb_substr(trim((string)$g('unidad')) ?: 'UND', 0, 20), 'cantidad' => round($cant, 2), 'valor_unitario' => round($vu, 2)];
+    }
+    if (!$items) throw new RuntimeException('El archivo no trae ítems con descripción.');
+    return [$items, $avisos];
+}
+
 function cot_obtener(int $id): ?array
 {
     return one('SELECT c.*, u.nombre AS creador FROM cotizaciones c LEFT JOIN usuarios u ON u.id = c.creado_por WHERE c.id = ?', [$id]);
@@ -324,11 +389,13 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
         foreach ($of['items'] as $it) {
             $k2++;
             $desc = $pdf->wrap((string)$it['descripcion'], $tw[0] - 8, 9);
-            $h = max(16, count($desc) * 11 + 6);
+            $extra = trim(($it['marca'] ? 'Marca: ' . $it['marca'] : '') . ($it['referencia'] ? '   Ref.: ' . $it['referencia'] : ''));
+            $h = max(16, count($desc) * 11 + 6 + ($extra !== '' ? 10 : 0));
             if ($y + $h > $limite) { $nueva(); $cab(); }
             $pdf->rect($xs[0], $y, array_sum($tw), $h, $k2 % 2 === 0 ? COT_TINTE : '', COT_LINEA, 0.6);
             for ($i = 1; $i < 4; $i++) $pdf->line($xs[$i], $y, $xs[$i], $y + $h, COT_LINEA, 0.5);
             foreach ($desc as $k => $ln) $pdf->text($xs[0], $y + 11.5 + $k * 11, $ln, 9, false, COT_TEXTO, $k === 0 && count($desc) === 1 ? 'C' : 'L', $tw[0]);
+            if ($extra !== '') $pdf->text($xs[0], $y + 11.5 + count($desc) * 11, $pdf->fit($extra, $tw[0] - 8, 7.5), 7.5, false, COT_GRIS, count($desc) === 1 ? 'C' : 'L', $tw[0]);
             $pdf->text($xs[1], $y + 11.5, cot_num($it['cantidad']), 9, false, COT_TEXTO, 'C', $tw[1]);
             $pdf->text($xs[2] + 4, $y + 11.5, money($it['valor_unitario']), 9, false, COT_TEXTO, 'R', $tw[2] - 8);
             $pdf->text($xs[3] + 4, $y + 11.5, money($it['valor_total']), 9, true, COT_TEXTO, 'R', $tw[3] - 8);
