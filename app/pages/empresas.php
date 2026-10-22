@@ -10,13 +10,22 @@ $rows = all("SELECT e.*,
     (SELECT COUNT(*) FROM equipos q WHERE q.empresa_id = e.id) AS n_equipos,
     (SELECT COUNT(*) FROM tickets t WHERE t.empresa_id = e.id AND t.estado IN ('Abierto','En proceso','En espera')) AS n_tickets
     FROM empresas e WHERE $where ORDER BY e.tipo DESC, e.activo DESC, e.nombre", $params);
+
+// Excel con las empresas del listado (mismas columnas que la plantilla de importación)
+if (get('exportar')) { require_once APP_DIR . '/empresas_importar.php'; emp_exportar($rows); }
 ?>
 <div class="panel">
   <div class="tabs">
     <a class="<?= $tipo === '' ? 'on' : '' ?>" href="<?= url('empresas') ?>">Todas</a>
     <a class="<?= $tipo === 'propia' ? 'on' : '' ?>" href="<?= url('empresas', ['tipo' => 'propia']) ?>">Propias (cartera)</a>
     <a class="<?= $tipo === 'cliente' ? 'on' : '' ?>" href="<?= url('empresas', ['tipo' => 'cliente']) ?>">Clientes</a>
-    <?php if (can('empresas', 'crear')): ?><span class="ms-auto"><a class="btn btn-primary btn-sm" href="<?= url('empresa_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nueva empresa</a></span><?php endif; ?>
+    <span class="ms-auto d-flex gap-2 pb-1">
+      <a class="btn btn-outline-secondary btn-sm" href="<?= e(url('empresas', array_filter(['tipo' => $tipo, 'exportar' => 1]))) ?>"><i class="bi bi-download me-1"></i>Excel</a>
+      <?php if (can('empresas', 'crear')): ?>
+      <a class="btn btn-outline-primary btn-sm" href="<?= url('empresas_importar') ?>"><i class="bi bi-upload me-1"></i>Importar Excel</a>
+      <a class="btn btn-primary btn-sm" href="<?= url('empresa_form') ?>"><i class="bi bi-plus-lg me-1"></i>Nueva empresa</a>
+      <?php endif; ?>
+    </span>
   </div>
   <div class="tbl-wrap"><table class="tbl">
     <thead><tr><th>Empresa</th><th>NIT</th><th>Tipo</th><th>Contacto</th><th>Teléfono</th><th class="c">Usuarios</th><th class="c">Equipos</th><th class="c">Tickets abiertos</th><th>Estado</th></tr></thead>

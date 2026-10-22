@@ -7,7 +7,7 @@ $p = [
     'ticket' => 'tickets', 'ticket_form' => 'tickets', 'equipo' => (es_computo((string)val('SELECT tipo FROM equipos WHERE id = ?', [(int)($_GET['id'] ?? 0)])) ? 'computo' : 'inventario'), 'equipo_form' => 'inventario',
     'computo_lista' => 'computo', 'computo_form' => 'computo', 'importar' => (($_GET['inv'] ?? '') === 'otros' ? 'inventario' : 'computo'),
     'gasto_form' => 'gastos', 'presupuesto' => 'estadisticas', 'factura' => 'cartera', 'factura_form' => 'cartera',
-    'usuario_form' => 'usuarios', 'empresa_form' => 'empresas', 'rol_form' => 'roles', 'mantenimiento_form' => 'mantenimiento', 'cotizacion' => 'cotizaciones', 'cotizacion_form' => 'cotizaciones', 'cotizacion_config' => 'cotizaciones',
+    'usuario_form' => 'usuarios', 'empresa_form' => 'empresas', 'empresas_importar' => 'empresas', 'cartera_importar' => 'cartera', 'rol_form' => 'roles', 'mantenimiento_form' => 'mantenimiento', 'cotizacion' => 'cotizaciones', 'cotizacion_form' => 'cotizaciones', 'cotizacion_config' => 'cotizaciones',
 ][$p] ?? $p;
 $appName = $CONFIG['app_name'] ?? 'MAVAL';
 $abiertos = $mantVencidos = 0;

@@ -26,20 +26,9 @@ if ($b = get('b')) { $where[] = '(f.numero LIKE ? OR f.cliente_nombre LIKE ? OR 
 $w = implode(' AND ', $where);
 $sql = "SELECT f.*, e.nombre AS empresa, COALESCE(p.pagado, 0) AS pagado, $saldo AS saldo $base WHERE $w ORDER BY f.fecha_vencimiento ASC, f.id DESC";
 
-if (get('exportar')) {
-    $rows = all($sql, $params);
-    while (ob_get_level()) ob_end_clean();
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="cartera_' . date('Ymd') . '.csv"');
-    $out = fopen('php://output', 'w');
-    fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Empresa', 'Factura', 'Cliente', 'NIT', 'Emisión', 'Vencimiento', 'Días vencida', 'Total', 'Abonado', 'Saldo', 'Estado', 'Concepto'], ';', '"', '');
-    foreach ($rows as $r) {
-        $dv = $r['saldo'] > 0.5 && !$r['anulada'] ? max(0, (int)((strtotime($hoy) - strtotime($r['fecha_vencimiento'])) / 86400)) : 0;
-        fputcsv($out, [$r['empresa'], $r['numero'], $r['cliente_nombre'], $r['cliente_nit'], $r['fecha_emision'], $r['fecha_vencimiento'], $dv,
-            number_format((float)$r['total'], 2, ',', ''), number_format((float)$r['pagado'], 2, ',', ''), number_format((float)$r['saldo'], 2, ',', ''), factura_estado($r), $r['concepto']], ';', '"', '');
-    }
-    exit;
+if (get('exportar')) {   // Excel (.xlsx) con las mismas columnas que la plantilla de importación
+    require_once APP_DIR . '/cartera_importar.php';
+    car_exportar(all($sql, $params), $hoy);
 }
 
 $per = 30;
@@ -124,7 +113,10 @@ $anios = range((int)date('Y'), (int)date('Y') - 5);
     <input class="form-control grow" name="b" value="<?= e(get('b')) ?>" placeholder="N.º factura, cliente, NIT o concepto">
     <div class="actions">
       <a class="btn btn-outline-secondary" href="index.php?<?= e(http_build_query($qs + ['exportar' => 1])) ?>"><i class="bi bi-download me-1"></i>Excel</a>
-      <?php if (can('cartera', 'crear')): ?><a class="btn btn-primary" href="<?= url('factura_form', array_filter(['empresa' => $emp ?: null])) ?>"><i class="bi bi-plus-lg me-1"></i>Registrar factura</a><?php endif; ?>
+      <?php if (can('cartera', 'crear')): ?>
+      <a class="btn btn-outline-primary" href="<?= url('cartera_importar') ?>"><i class="bi bi-upload me-1"></i>Importar Excel</a>
+      <a class="btn btn-primary" href="<?= url('factura_form', array_filter(['empresa' => $emp ?: null])) ?>"><i class="bi bi-plus-lg me-1"></i>Registrar factura</a>
+      <?php endif; ?>
     </div>
   </form>
   <div class="tbl-wrap"><table class="tbl">

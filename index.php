@@ -10,9 +10,9 @@ $pages = [
     'inventario', 'equipo', 'equipo_form', 'computo', 'computo_lista', 'computo_form', 'importar',
     'mantenimiento', 'mantenimiento_form',
     'cotizaciones', 'cotizacion', 'cotizacion_form', 'cotizacion_config',
-    'usuarios', 'usuario_form', 'roles', 'rol_form', 'empresas', 'empresa_form', 'config_correo',
+    'usuarios', 'usuario_form', 'roles', 'rol_form', 'empresas', 'empresa_form', 'empresas_importar', 'config_correo',
     'gastos', 'gasto_form', 'estadisticas', 'presupuesto', 'categorias',
-    'cartera', 'factura', 'factura_form', 'ingresos',
+    'cartera', 'cartera_importar', 'factura', 'factura_form', 'ingresos',
 ];
 $p = $_GET['p'] ?? 'inicio';
 if (!in_array($p, $pages, true)) $p = 'inicio';
@@ -20,9 +20,9 @@ if (!in_array($p, $pages, true)) $p = 'inicio';
 // Módulo que protege cada página (además de las verificaciones de acción dentro de cada una)
 $modulo = [
     'tickets' => 'tickets', 'ticket' => 'tickets', 'ticket_form' => 'tickets', 'computo' => 'computo', 'computo_lista' => 'computo', 'inventario' => 'inventario',
-    'mantenimiento' => 'mantenimiento', 'mantenimiento_form' => 'mantenimiento', 'usuarios' => 'usuarios', 'roles' => 'roles', 'rol_form' => 'roles', 'empresas' => 'empresas',
+    'mantenimiento' => 'mantenimiento', 'mantenimiento_form' => 'mantenimiento', 'usuarios' => 'usuarios', 'roles' => 'roles', 'rol_form' => 'roles', 'empresas' => 'empresas', 'empresas_importar' => 'empresas',
     'cotizaciones' => 'cotizaciones', 'cotizacion' => 'cotizaciones', 'cotizacion_form' => 'cotizaciones', 'cotizacion_config' => 'cotizaciones',
-    'config_correo' => 'config', 'gastos' => 'gastos', 'estadisticas' => 'estadisticas', 'categorias' => 'categorias', 'cartera' => 'cartera', 'factura' => 'cartera', 'ingresos' => 'ingresos',
+    'config_correo' => 'config', 'gastos' => 'gastos', 'estadisticas' => 'estadisticas', 'categorias' => 'categorias', 'cartera' => 'cartera', 'cartera_importar' => 'cartera', 'factura' => 'cartera', 'ingresos' => 'ingresos',
 ];
 if (isset($modulo[$p])) require_perm($modulo[$p], 'ver');
 
