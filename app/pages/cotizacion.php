@@ -117,6 +117,9 @@ $msgDef = "Cordial saludo" . ($c['atencion'] ? ', ' . $c['atencion'] : '') . ".\
     <?php if (count($ofertas) > 1 && !empty($c["sumar_ofertas"]) && $ofertas[1]['sumar'] && $ofertas[2]['sumar']): ?>
     <div class="panel d-flex justify-content-between align-items-center"><strong>TOTAL OFERTA 1 + OFERTA 2</strong><strong class="fs-5"><?= money($c["total"] + $c["total2"]) ?></strong></div>
     <?php endif; ?>
+    <?php if (!$esProp && trim(strip_tags((string)$c['texto_final'])) !== ''): ?>
+    <div class="panel"><div class="panel-h"><h3>Texto al final</h3></div><div class="msg-b rt-vista"><?= cot_rich_html($c['texto_final']) ?></div></div>
+    <?php endif; ?>
     <?php if ($esProp): ?>
     <div class="panel">
       <div class="panel-h"><h3>1. Descripción</h3></div><div class="msg-b mb-3"><?= e($c['descripcion'] ?: '—') ?></div>

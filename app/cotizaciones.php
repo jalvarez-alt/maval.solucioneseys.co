@@ -23,6 +23,7 @@ function cot_emisor(): array
         'validez' => ajuste('cot_validez', '10 DIAS'),
         'entrega' => ajuste('cot_entrega', 'INMEDIATA'),
         'pago' => ajuste('cot_pago', 'CONTADO'),
+        'texto_final' => (string)ajuste('cot_texto_final', ''),
     ];
 }
 
@@ -288,6 +289,12 @@ function cot_pdf_items(array $c, array $items): SimplePdf
     $pdf->text($cx, $linea, 'Condiciones Comerciales', 10, true, COT_CORAL, 'C', $cw2); $linea += 14;
     foreach ([['Validez de la oferta : ', $c['validez']], ['Tiempo de entrega : ', $c['tiempo_entrega']], ['Forma de pago ', $c['forma_pago']]] as [$k, $v]) {
         $pdf->text($cx, $linea, $k . $v, 10, true, COT_NAVY, 'C', $cw2); $linea += 14;
+    }
+    // Texto final (escrito por el usuario): párrafo con formato al final del documento
+    if (trim(strip_tags((string)($c['texto_final'] ?? ''))) !== '') {
+        $y += $hBox + 24;
+        $asegurar = function (float $h) use (&$y, $bottom, $pdf, $pie) { if ($y + $h > $bottom) { $pie($pdf->pageNo()); $pdf->addPage(); $y = 40.0; } };
+        cot_rich_pdf($pdf, (string)$c['texto_final'], $y, $L, $W, $asegurar);
     }
     $pie($pdf->pageNo());
     return $pdf;

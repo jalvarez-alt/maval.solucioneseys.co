@@ -72,7 +72,7 @@ $formato = $c['formato'] ?? ($origen['formato'] ?? $formato);
 $esProp = $formato === 'propuesta';
 $v = $origen ?: [];
 $v += ['fecha' => today(), 'ciudad' => $em['ciudad'], 'empresa_id' => null, 'cliente_nombre' => '', 'cliente_nit' => '', 'cliente_direccion' => '', 'cliente_telefono' => '', 'cliente_email' => '', 'atencion' => '',
-    'descripcion' => '', 'alcances' => '', 'mano_obra' => 0, 'mano_obra2' => 0, 'titulo1' => '', 'titulo2' => '', 'sumar_ofertas' => 0, 'sumar1' => 1, 'sumar2' => 1, 'validez' => $em['validez'], 'tiempo_entrega' => $em['entrega'], 'forma_pago' => $em['pago'], 'notas' => ''];
+    'descripcion' => '', 'alcances' => '', 'mano_obra' => 0, 'mano_obra2' => 0, 'titulo1' => '', 'titulo2' => '', 'sumar_ofertas' => 0, 'sumar1' => 1, 'sumar2' => 1, 'texto_final' => $em['texto_final'], 'validez' => $em['validez'], 'tiempo_entrega' => $em['entrega'], 'forma_pago' => $em['pago'], 'notas' => ''];
 if ($copiar && !$c) $v['fecha'] = today();
 $vacio = [['referencia' => '', 'descripcion' => '', 'marca' => '', 'unidad' => 'UND', 'cantidad' => 1, 'valor_unitario' => '']];
 $items = [1 => [], 2 => []];
@@ -89,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'cliente_nombre' => (string)post('cliente_nombre', ''), 'cliente_nit' => post('cliente_nit'), 'cliente_direccion' => post('cliente_direccion'),
         'cliente_telefono' => post('cliente_telefono'), 'cliente_email' => post('cliente_email'), 'atencion' => post('atencion'),
         'descripcion' => $esProp ? post('descripcion') : null, 'alcances' => $esProp ? cot_rich_normalizar((string)($_POST['alcances'] ?? '')) : null,
+        'texto_final' => !$esProp ? cot_rich_normalizar((string)($_POST['texto_final'] ?? '')) : null,
         'titulo1' => $esProp ? post('titulo1') : null, 'titulo2' => $oferta2 ? post('titulo2') : null, 'sumar_ofertas' => $oferta2 && post('sumar_ofertas') ? 1 : 0, 'sumar1' => post('sumar_1') ? 1 : 0, 'sumar2' => $oferta2 && post('sumar_2') ? 1 : 0,
         'validez' => post('validez'), 'tiempo_entrega' => post('tiempo_entrega'), 'forma_pago' => post('forma_pago'), 'notas' => post('notas'),
     ];
@@ -133,6 +134,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 foreach ([1, 2] as $o) if (!$items[$o]) $items[$o] = $vacio;
 $empresas = all('SELECT id, nombre, nit, direccion, telefono, email, contacto FROM empresas WHERE activo = 1 ORDER BY nombre');
+
+/** Editor de texto con formato (barra: tipo de letra, tamaño, negrilla, viñetas, numeración). Envía el HTML en el campo $nombre. */
+function cot_editor_rt(string $nombre, ?string $html, string $placeholder): void
+{ ?>
+  <div class="rt">
+    <div class="rt-bar">
+      <select class="form-select form-select-sm rt-fuente" title="Tipo de letra"><option value="">Tipo de letra</option><option value="Arial">Arial</option><option value="Times New Roman">Times New Roman</option><option value="Courier New">Courier New</option></select>
+      <select class="form-select form-select-sm rt-tam" title="Tamaño de letra"><option value="">Tamaño</option><option value="8">8</option><option value="9">9</option><option value="10.5">10,5 (normal)</option><option value="12">12</option><option value="14">14</option><option value="16">16</option><option value="20">20</option></select>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bold" title="Negrilla"><i class="bi bi-type-bold"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="insertUnorderedList" title="Viñetas"><i class="bi bi-list-ul"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="insertOrderedList" title="Numeración"><i class="bi bi-list-ol"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="removeFormat" title="Quitar formato"><i class="bi bi-eraser"></i></button>
+    </div>
+    <div class="form-control rt-editor" contenteditable="true" data-placeholder="<?= e($placeholder) ?>"><?= cot_rich_html($html) ?></div>
+    <input type="hidden" name="<?= e($nombre) ?>" class="rt-valor">
+    <div class="form-text">Seleccione el texto y use la barra: negrilla, tipo y tamaño de letra, viñetas y numeración. Se respeta tal cual en el PDF.</div>
+  </div>
+<?php }
 
 /** Tabla de ítems de una oferta (los campos se llaman it_xxx[oferta][]). */
 function cot_tabla_items(int $o, array $lista, bool $esProp): void
@@ -227,17 +246,7 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
   <h6 class="sec">1. Descripción</h6>
   <textarea class="form-control" name="descripcion" rows="3" placeholder="En qué consiste la solución"><?= e($v['descripcion']) ?></textarea>
   <h6 class="sec">2. Alcances de la propuesta</h6>
-  <div class="rt-bar" id="rt-bar">
-    <select class="form-select form-select-sm" id="rt-fuente" title="Tipo de letra"><option value="">Tipo de letra</option><option value="Arial">Arial</option><option value="Times New Roman">Times New Roman</option><option value="Courier New">Courier New</option></select>
-    <select class="form-select form-select-sm" id="rt-tam" title="Tamaño de letra"><option value="">Tamaño</option><option value="8">8</option><option value="9">9</option><option value="10.5">10,5 (normal)</option><option value="12">12</option><option value="14">14</option><option value="16">16</option><option value="20">20</option></select>
-    <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bold" title="Negrilla"><i class="bi bi-type-bold"></i></button>
-    <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="insertUnorderedList" title="Viñetas"><i class="bi bi-list-ul"></i></button>
-    <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="insertOrderedList" title="Numeración"><i class="bi bi-list-ol"></i></button>
-    <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="removeFormat" title="Quitar formato"><i class="bi bi-eraser"></i></button>
-  </div>
-  <div id="rt-editor" class="form-control rt-editor" contenteditable="true" data-placeholder="Qué incluye y cómo queda funcionando"><?= cot_rich_html($v['alcances']) ?></div>
-  <input type="hidden" name="alcances" id="rt-valor">
-  <div class="form-text">Seleccione el texto y use la barra: negrilla, tipo y tamaño de letra, viñetas y numeración. Se respeta tal cual en el PDF.</div>
+  <?php cot_editor_rt('alcances', $v['alcances'], 'Qué incluye y cómo queda funcionando'); ?>
   <h6 class="sec">3. Oferta comercial</h6>
   <input type="hidden" name="oferta2" id="oferta2" value="<?= $oferta2 ? '1' : '0' ?>">
   <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -275,6 +284,10 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
     <div><label class="form-label">Forma de pago</label><input class="form-control" name="forma_pago" value="<?= e($v['forma_pago']) ?>"></div>
     <div class="full"><label class="form-label">Notas internas (no aparecen en el PDF)</label><input class="form-control" name="notas" value="<?= e($v['notas']) ?>"></div>
   </div>
+  <?php if (!$esProp): ?>
+  <h6 class="sec">Texto al final de la cotización</h6>
+  <?php cot_editor_rt('texto_final', $v['texto_final'], 'Ej.: Los precios no incluyen IVA. Garantía de 12 meses por defectos de fábrica…'); ?>
+  <?php endif; ?>
   <div class="form-actions">
     <button class="btn btn-primary"><i class="bi bi-save me-1"></i>Guardar cotización</button>
     <a class="btn btn-outline-secondary" href="<?= $c ? url('cotizacion', ['id' => $id]) : url('cotizaciones') ?>">Cancelar</a>
@@ -418,17 +431,16 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
         .catch(function () { inp.value = ''; msg.className = 'small mt-1 text-danger'; msg.textContent = 'No se pudo importar el archivo.'; });
     });
   });
-  // Editor de texto con formato (Alcances de la propuesta)
-  var rt = document.getElementById('rt-editor');
-  if (rt) {
-    var bar = document.getElementById('rt-bar');
+  // Editores de texto con formato (Alcances de la propuesta, Texto final)
+  Array.prototype.forEach.call(document.querySelectorAll('.rt'), function (box) {
+    var rt = box.querySelector('.rt-editor'), bar = box.querySelector('.rt-bar'), val = box.querySelector('.rt-valor');
     bar.addEventListener('mousedown', function (e) { if (e.target.closest('button')) e.preventDefault(); });   // no perder la selección
     bar.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
       rt.focus(); document.execCommand(b.getAttribute('data-cmd'), false, null);
     });
-    document.getElementById('rt-fuente').addEventListener('change', function () { if (!this.value) return; rt.focus(); document.execCommand('fontName', false, this.value); this.value = ''; });
-    document.getElementById('rt-tam').addEventListener('change', function () {
+    box.querySelector('.rt-fuente').addEventListener('change', function () { if (!this.value) return; rt.focus(); document.execCommand('fontName', false, this.value); this.value = ''; });
+    box.querySelector('.rt-tam').addEventListener('change', function () {
       var pt = this.value; this.value = ''; if (!pt) return;
       rt.focus(); document.execCommand('fontSize', false, '7');
       Array.prototype.forEach.call(rt.querySelectorAll('font[size="7"]'), function (f) {
@@ -437,8 +449,8 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
       });
     });
     rt.addEventListener('paste', function (e) { e.preventDefault(); var t = (e.clipboardData || window.clipboardData).getData('text/plain'); document.execCommand('insertText', false, t); });
-    document.getElementById('cot').addEventListener('submit', function () { document.getElementById('rt-valor').value = rt.innerHTML; });
-  }
+    document.getElementById('cot').addEventListener('submit', function () { val.value = rt.innerHTML; });
+  });
   recalc();
 })();
 </script>

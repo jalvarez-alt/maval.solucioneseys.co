@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.11.0');
-define('DB_VERSION', 7);
+define('APP_VERSION', '1.12.0');
+define('DB_VERSION', 8);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -131,6 +131,7 @@ function migrar(): void
     if ($v < 4) migrar_v4($run, $eng);
     if ($v < 5) migrar_v5($run);
     if ($v < 6) $run('ALTER TABLE cotizaciones ADD COLUMN sumar_ofertas TINYINT NOT NULL DEFAULT 0', true); // v6: sumar las dos ofertas en un total combinado
+    if ($v < 8) $run('ALTER TABLE cotizaciones ADD COLUMN texto_final TEXT NULL', true);   // v8: texto al final de la cotización con ítems
     if ($v < 7) { $run('ALTER TABLE cotizaciones ADD COLUMN sumar1 TINYINT NOT NULL DEFAULT 1', true); $run('ALTER TABLE cotizaciones ADD COLUMN sumar2 TINYINT NOT NULL DEFAULT 1', true); } // v7: el usuario decide si cada oferta suma sus ítems y muestra el total
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
