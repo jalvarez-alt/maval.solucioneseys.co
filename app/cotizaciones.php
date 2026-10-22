@@ -274,8 +274,16 @@ function cot_pdf_items(array $c, array $items): SimplePdf
         $y += 19;
     }
     $y += 16;
-    // Cuadros inferiores: saludo y condiciones comerciales
+    // Texto del usuario (con formato): va después de los totales y antes de los cuadros «Cordial saludo» y «Condiciones Comerciales»
     $hBox = 80;
+    if (trim(strip_tags((string)($c['texto_final'] ?? ''))) !== '') {
+        $asegurar = function (float $h) use (&$y, $bottom, $pdf, $pie) { if ($y + $h > $bottom) { $pie($pdf->pageNo()); $pdf->addPage(); $y = 40.0; } };
+        $y += 4;
+        cot_rich_pdf($pdf, (string)$c['texto_final'], $y, $L, $W, $asegurar);
+        $y += 14;
+    }
+    if ($y + $hBox > $bottom) { $pie($pdf->pageNo()); $pdf->addPage(); $y = 40.0; }   // los cuadros no se parten entre páginas
+    // Cuadros inferiores: saludo y condiciones comerciales
     $pdf->rect($L, $y, 205, $hBox, COT_TINTE, COT_LINEA, 0.8);
     $pdf->rect($L, $y, 4, $hBox, COT_CORAL);
     $linea = $y + 19;
@@ -289,12 +297,6 @@ function cot_pdf_items(array $c, array $items): SimplePdf
     $pdf->text($cx, $linea, 'Condiciones Comerciales', 10, true, COT_CORAL, 'C', $cw2); $linea += 14;
     foreach ([['Validez de la oferta : ', $c['validez']], ['Tiempo de entrega : ', $c['tiempo_entrega']], ['Forma de pago ', $c['forma_pago']]] as [$k, $v]) {
         $pdf->text($cx, $linea, $k . $v, 10, true, COT_NAVY, 'C', $cw2); $linea += 14;
-    }
-    // Texto final (escrito por el usuario): párrafo con formato al final del documento
-    if (trim(strip_tags((string)($c['texto_final'] ?? ''))) !== '') {
-        $y += $hBox + 24;
-        $asegurar = function (float $h) use (&$y, $bottom, $pdf, $pie) { if ($y + $h > $bottom) { $pie($pdf->pageNo()); $pdf->addPage(); $y = 40.0; } };
-        cot_rich_pdf($pdf, (string)$c['texto_final'], $y, $L, $W, $asegurar);
     }
     $pie($pdf->pageNo());
     return $pdf;

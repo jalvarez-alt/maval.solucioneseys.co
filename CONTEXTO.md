@@ -1,6 +1,6 @@
 # MAVAL — contexto del proyecto
 
-Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-18 (v1.12.0 en local; producción en v1.11.0 hasta que se despliegue).
+Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-18 (v1.12.1 en local; producción en v1.12.0 hasta que se despliegue).
 
 ## Qué es
 Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda (tickets) con avisos por correo, inventario de cómputo y otros equipos (incluye aires acondicionados), planeador de mantenimiento preventivo, roles y permisos, cotizaciones con PDF y envío por correo, gastos, presupuesto, cartera (facturas y abonos) y entradas de dinero. Producción: https://maval.solucioneseys.co (Namecheap, cPanel).
@@ -27,7 +27,7 @@ Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda 
 ## Estructura
 - `index.php`: enrutador. `?p=<pagina>` carga `app/pages/<pagina>.php` (lista blanca en el propio `index.php`), exige login y valida CSRF.
 - `login.php`, `logout.php`, `instalar.php` (instalador; en producción ya se eliminó la ejecución, aquí queda `instalar.php.old`), `archivo.php` (entrega de adjuntos con permiso).
-- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.12.0, `DB_VERSION` 8. Función `q()` para consultas preparadas, `db()` para el PDO.
+- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.12.1, `DB_VERSION` 8. Función `q()` para consultas preparadas, `db()` para el PDO.
 - `app/pages/`: una página por módulo (tickets, inventario, computo*, importar, mantenimiento*, cotizacion*, usuarios, roles, rol_form, empresas, config_correo, gastos, estadisticas, presupuesto, categorias, cartera, factura*, ingresos, perfil, inicio).
 - `app/computo.php`, `app/importar.php`, `app/masivo.php`: lógica de inventario de cómputo, importación masiva Excel/CSV y acciones masivas.
 - `app/mail.php` (SMTP propio sin dependencias, ajustes en tabla `ajustes`, plantilla HTML, `despues()` envía tras responder), `app/notificaciones.php` (avisos de tickets y recordatorios de mantenimiento), `app/mantenimiento.php` (lógica del planeador), `app/cotizaciones.php` (totales, datos del emisor y PDF de cotizaciones en 2 formatos), `cron.php` (tarea diaria de recordatorios).
@@ -52,7 +52,7 @@ empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos
 - Se envían por correo con el PDF adjunto desde una **cuenta SMTP propia** (claves `cot_*` en `ajustes`, `correo_config('cot')`), independiente de la de la mesa de ayuda. Permisos: *aprobar* = enviar y cambiar estado; *administrar* = configuración.
 
 ## Texto final de la cotización con ítems (v1.12.0)
-- Campo `cotizaciones.texto_final` (HTML normalizado, mismo editor con formato que «Alcances»: `cot_editor_rt()` en `cotizacion_form.php`, reutilizable). Se imprime justificado bajo los cuadros «Cordial saludo / Condiciones Comerciales» (pasa de página si hace falta) y se ve en el detalle. Valor por defecto para cotizaciones nuevas: *Configurar cotizaciones → Texto al final* (`ajustes.cot_texto_final`); las cotizaciones existentes quedan sin texto.
+- Campo `cotizaciones.texto_final` (HTML normalizado, mismo editor con formato que «Alcances»: `cot_editor_rt()` en `cotizacion_form.php`, reutilizable). Se imprime justificado después de los totales y **antes** de los cuadros «Cordial saludo / Condiciones Comerciales» (pasa de página si hace falta; los cuadros no se parten) y se ve en el detalle. Valor por defecto para cotizaciones nuevas: *Configurar cotizaciones → Texto al final* (`ajustes.cot_texto_final`); las cotizaciones existentes quedan sin texto.
 
 ## Cartera por Excel (v1.11.0)
 - En *Cartera*: **Excel** ahora exporta un .xlsx real (Empresa, Factura, Cliente, NIT, Emisión, Vencimiento, Concepto, Subtotal, IVA, Retenciones, Total, Abonado, Saldo, Días vencida, Estado) y **Importar Excel** (permiso *crear*): `?p=cartera_importar`, mismo flujo que empresas (subir → vista previa → confirmar). Columnas de la plantilla: Empresa, Factura, Cliente, NIT, Emisión, Vencimiento, Concepto, Subtotal, IVA, Retenciones, Total, Abonado, Saldo, Fecha abono, Notas. La empresa que factura (propia) viene de la columna o de un selector al subir. Total = Subtotal + IVA − Retenciones (si solo trae Total, el subtotal se calcula); «Abonado» (o «Saldo») registra un abono (método Otro, nota «Importado desde Excel»). Factura existente = misma empresa + número: se actualiza solo con lo que venga con valor y los abonos solo se agregan (nunca se borran ni reducen). Lógica en `app/cartera_importar.php`.
@@ -94,7 +94,7 @@ bcrypt, CSRF en formularios, bloqueo tras 8 intentos fallidos (15 min), cierre d
 
 ## Pendientes / notas
 - `.gitignore` ya excluye `app/config.php`, `config.remote.php.bak`, `.vscode/`, `uploads/*`, `error_log`, zips.
-- **Pendiente de desplegar:** v1.12.0 (texto al final de la cotización con ítems; BD v7→v8, se migra sola; archivos: `app/bootstrap.php`, `app/cotizaciones.php`, `sql/schema.sql`, páginas `cotizacion.php`, `cotizacion_form.php` y `cotizacion_config.php`).
+- **Pendiente de desplegar:** v1.12.1 (el texto final de la cotización con ítems ahora se imprime antes de «Cordial saludo» y «Condiciones Comerciales»; sin cambios de BD; archivos: `app/cotizaciones.php`, `app/bootstrap.php`).
 - **Pendiente tras el despliegue v1.4.0 (hacerlo como administrador en producción):** configurar la cuenta de correo de la mesa de ayuda (*Correo y notificaciones*), la de cotizaciones, los datos de la empresa y el consecutivo inicial (*Configurar cotizaciones*), y crear en cPanel el Cron Job diario `php /home/aqreqjec/maval.solucioneseys.co/cron.php`.
 - Al desplegar una versión nueva: subir los archivos modificados (nunca `app/config.php`), entrar como administrador (la BD se migra sola) y hacer antes copia de la BD.
 - Ideas pendientes: permisos por usuario (hoy son por rol), restringir el acceso por IP, reportes de cotizaciones por cliente.
