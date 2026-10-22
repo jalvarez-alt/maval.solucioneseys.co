@@ -17,6 +17,23 @@ foreach ($items as $it) {
 // PDF: vista en la pestaña o descarga
 if (get('pdf')) cot_pdf($c, $items)->download(cot_archivo($c), get('pdf') === 'ver');
 
+// Excel con todos los ítems (solo mientras la cotización es un borrador). Mismas columnas que la plantilla de importación.
+if (get('xlsx')) {
+    if ($c['estado'] !== 'Borrador') { flash('Los ítems solo se pueden descargar en Excel mientras la cotización está en borrador.', 'warning'); redirect(url('cotizacion', ['id' => $id])); }
+    require_once APP_DIR . '/lib/xlsx.php';
+    $dos = count(array_unique(array_map(fn($i) => (int)$i['oferta'], $items))) > 1;
+    $filas = [];
+    foreach ($items as $it) {
+        $fila = [$it['referencia'], $it['descripcion'], $it['marca'], $it['unidad'], (float)$it['cantidad'], (float)$it['valor_unitario'], (float)$it['valor_total']];
+        if ($dos) array_unshift($fila, 'Oferta ' . (int)$it['oferta']);
+        $filas[] = $fila;
+    }
+    $cab = ['Referencia', 'Descripción', 'Marca', 'Unidad', 'Cant', 'Valor unitario', 'Valor total'];
+    $anchos = [14, 60, 16, 10, 8, 16, 16];
+    if ($dos) { array_unshift($cab, 'Oferta'); array_unshift($anchos, 10); }
+    xlsx_download('Items_cotizacion_' . $c['consecutivo'] . '.xlsx', [['name' => 'Items', 'headers' => $cab, 'rows' => $filas, 'widths' => $anchos]]);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acc = post('accion');
     if ($acc === 'enviar') {
@@ -66,6 +83,7 @@ $msgDef = "Cordial saludo" . ($c['atencion'] ? ', ' . $c['atencion'] : '') . ".\
   <h2 class="h5 m-0 ms-1">No. <?= (int)$c['consecutivo'] ?> · <?= e($c['cliente_nombre']) ?></h2>
   <?= badge($c['estado']) ?> <?= badge(COT_FORMATOS[$c['formato']] ?? $c['formato'], 'info') ?>
   <div class="ms-auto d-flex flex-wrap gap-2">
+    <?php if ($c['estado'] === 'Borrador'): ?><a class="btn btn-sm btn-outline-success" href="<?= url('cotizacion', ['id' => $id, 'xlsx' => 1]) ?>" title="Descargar todos los ítems en Excel (solo en borrador)"><i class="bi bi-file-earmark-excel me-1"></i>Ítems en Excel</a><?php endif; ?>
     <a class="btn btn-sm btn-outline-primary" target="_blank" href="<?= url('cotizacion', ['id' => $id, 'pdf' => 'ver']) ?>"><i class="bi bi-eye me-1"></i>Ver PDF</a>
     <a class="btn btn-sm btn-outline-primary" href="<?= url('cotizacion', ['id' => $id, 'pdf' => 'bajar']) ?>"><i class="bi bi-download me-1"></i>Descargar</a>
     <?php if (can('cotizaciones', 'crear')): ?><a class="btn btn-sm btn-outline-secondary" href="<?= url('cotizacion_form', ['copiar' => $id]) ?>"><i class="bi bi-copy me-1"></i>Duplicar</a><?php endif; ?>
