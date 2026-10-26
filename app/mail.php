@@ -83,7 +83,7 @@ function limpiar_cabecera(string $s): string { return trim(preg_replace('/[\r\n]
 function cabecera_utf8(string $s): string { $s = limpiar_cabecera($s); return preg_match('/[^\x20-\x7e]/', $s) ? '=?UTF-8?B?' . base64_encode($s) . '?=' : $s; }
 
 /**
- * Envía un correo HTML. $para: dirección o lista. Opciones: motivo (para el registro), responder (Reply-To).
+ * Envía un correo HTML. $para: dirección o lista. Opciones: motivo (para el registro), responder (Reply-To), desde_nombre (nombre visible del remitente).
  * Devuelve ['ok' => bool, 'error' => ?string, 'enviados' => int]. No lanza excepciones.
  */
 function enviar_correo($para, string $asunto, string $html, array $o = []): array
@@ -116,7 +116,6 @@ function enviar_correo($para, string $asunto, string $html, array $o = []): arra
     }
     try {
         insert('correo_log', ['fecha' => now(), 'destinatarios' => mb_substr(implode(', ', $dest), 0, 500), 'asunto' => $asunto, 'ok' => $ok ? 1 : 0, 'error' => $ok ? null : mb_substr((string)$error, 0, 500), 'motivo' => $motivo]);
-        q('DELETE FROM correo_log WHERE fecha < ?', [date('Y-m-d H:i:s', strtotime('-90 days'))]);
     } catch (Throwable $e) { /* el registro es secundario */ }
     if (!$ok) error_log('MAVAL correo: ' . $error . ' (' . $asunto . ')');
     return ['ok' => $ok, 'error' => $ok ? null : $error, 'enviados' => $ok ? count($dest) : 0];
@@ -128,7 +127,8 @@ function correo_mensaje(array $cfg, array $dest, string $asunto, string $html, s
     $adj = $o['adjuntos'] ?? [];
     $bm = 'mx' . bin2hex(random_bytes(12));
     $dominio = substr(strrchr($cfg['desde'], '@'), 1);
-    $de = ($cfg['desde_nombre'] !== '' ? cabecera_utf8($cfg['desde_nombre']) . ' ' : '') . '<' . $cfg['desde'] . '>';
+    $nombre = (string)($o['desde_nombre'] ?? $cfg['desde_nombre']);
+    $de = ($nombre !== '' ? cabecera_utf8($nombre) . ' ' : '') . '<' . $cfg['desde'] . '>';
     $resp = $o['responder'] ?? ($cfg['responder'] !== '' ? $cfg['responder'] : null);
     $h = [
         'Date: ' . date('r'),
@@ -250,7 +250,7 @@ function despues(callable $fn): void
 }
 
 // ---------- Plantilla ----------
-function correo_plantilla(string $titulo, string $contenido, ?string $url = null, ?string $boton = null): string
+function correo_plantilla(string $titulo, string $contenido, ?string $url = null, ?string $boton = null, ?string $pie = null): string
 {
     global $CONFIG;
     $app = e($CONFIG['app_name'] ?? 'MAVAL');
@@ -262,7 +262,7 @@ function correo_plantilla(string $titulo, string $contenido, ?string $url = null
         . '<tr><td style="background:#0f766e;color:#ffffff;padding:16px 24px;font-size:18px;font-weight:700">' . $app . '</td></tr>'
         . '<tr><td style="padding:24px"><h2 style="margin:0 0 14px;font-size:19px;color:#0f172a">' . e($titulo) . '</h2>'
         . '<div style="font-size:14px;line-height:1.55">' . $contenido . '</div>' . $btn . '</td></tr>'
-        . '<tr><td style="padding:14px 24px;background:#f8fafc;color:#64748b;font-size:12px">Mensaje automático de ' . $app . '. Por favor no responda a este correo si no es necesario.</td></tr>'
+        . '<tr><td style="padding:14px 24px;background:#f8fafc;color:#64748b;font-size:12px">' . ($pie !== null ? e($pie) : 'Mensaje automático de ' . $app . '. Por favor no responda a este correo si no es necesario.') . '</td></tr>'
         . '</table></td></tr></table></body></html>';
 }
 /** Tabla de datos clave/valor para los correos. */

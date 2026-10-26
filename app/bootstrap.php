@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.12.1');
-define('DB_VERSION', 8);
+define('APP_VERSION', '1.13.0');
+define('DB_VERSION', 9);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -133,8 +133,20 @@ function migrar(): void
     if ($v < 6) $run('ALTER TABLE cotizaciones ADD COLUMN sumar_ofertas TINYINT NOT NULL DEFAULT 0', true); // v6: sumar las dos ofertas en un total combinado
     if ($v < 8) $run('ALTER TABLE cotizaciones ADD COLUMN texto_final TEXT NULL', true);   // v8: texto al final de la cotización con ítems
     if ($v < 7) { $run('ALTER TABLE cotizaciones ADD COLUMN sumar1 TINYINT NOT NULL DEFAULT 1', true); $run('ALTER TABLE cotizaciones ADD COLUMN sumar2 TINYINT NOT NULL DEFAULT 1', true); } // v7: el usuario decide si cada oferta suma sus ítems y muestra el total
+    if ($v < 9) migrar_v9($run, $eng);
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
+}
+
+/** v9: registro de estados de cuenta enviados a los clientes (gestiones de cobro). */
+function migrar_v9(callable $run, string $eng): void
+{
+    $run('CREATE TABLE IF NOT EXISTS cartera_envios (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, fecha DATETIME NOT NULL, cliente_clave VARCHAR(160) NOT NULL, cliente_nombre VARCHAR(150) NOT NULL,
+        cliente_nit VARCHAR(30) NULL, empresa_id INT UNSIGNED NULL, destinatarios VARCHAR(500) NOT NULL, asunto VARCHAR(255) NOT NULL, mensaje TEXT NULL,
+        facturas TEXT NULL, n_facturas INT NOT NULL DEFAULT 0, total_saldo DECIMAL(15,2) NOT NULL DEFAULT 0, ok TINYINT NOT NULL DEFAULT 0,
+        error VARCHAR(500) NULL, usuario_id INT UNSIGNED NULL)' . $eng);
+    $run('CREATE INDEX idx_car_envios_cliente ON cartera_envios (cliente_clave, fecha)', true);
 }
 
 /** v5: segunda oferta comercial en las propuestas. */
@@ -506,7 +518,7 @@ const MODULOS = [
         'aprobar' => 'Enviar por correo y cambiar el estado (aceptada, rechazada, anulada)', 'administrar' => 'Configurar la cuenta de correo, los datos de la empresa, el logo y el consecutivo']],
     'gastos' => ['Gastos', 'wallet2', ['ver' => 'Consultar gastos', 'crear' => 'Registrar gastos', 'editar' => 'Editar gastos', 'eliminar' => 'Eliminar gastos']],
     'estadisticas' => ['Estadísticas y presupuesto', 'bar-chart-line', ['ver' => 'Consultar estadísticas y presupuesto', 'editar' => 'Definir el presupuesto']],
-    'cartera' => ['Cartera', 'receipt', ['ver' => 'Consultar facturas y abonos', 'crear' => 'Crear facturas y registrar abonos', 'editar' => 'Editar facturas', 'eliminar' => 'Eliminar facturas y abonos', 'aprobar' => 'Anular o reactivar facturas']],
+    'cartera' => ['Cartera', 'receipt', ['ver' => 'Consultar facturas y abonos', 'crear' => 'Crear facturas y registrar abonos', 'editar' => 'Editar facturas', 'eliminar' => 'Eliminar facturas y abonos', 'aprobar' => 'Anular o reactivar facturas', 'administrar' => 'Enviar estados de cuenta por correo a los clientes']],
     'ingresos' => ['Entradas de dinero', 'cash-coin', ['ver' => 'Consultar entradas de dinero']],
     'empresas' => ['Empresas', 'buildings', ['ver' => 'Consultar empresas', 'crear' => 'Crear empresas', 'editar' => 'Editar empresas']],
     'categorias' => ['Categorías de gasto', 'tags', ['ver' => 'Consultar categorías', 'crear' => 'Crear categorías', 'editar' => 'Renombrar y activar', 'eliminar' => 'Eliminar categorías']],

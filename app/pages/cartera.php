@@ -1,5 +1,6 @@
 <?php
 require_perm('cartera', 'ver');
+require_once APP_DIR . '/cartera_estado.php';   // car_cli_clave()
 $title = 'Cartera';
 $propias = empresas_list('propia');
 $emp = (int)get('empresa', 0);
@@ -95,10 +96,10 @@ $anios = range((int)date('Y'), (int)date('Y') - 5);
     </table>
   </div></div>
   <div class="col-lg-5"><div class="panel h-100 mb-0">
-    <div class="panel-h"><h3>Clientes con mayor saldo</h3></div>
+    <div class="panel-h"><h3>Clientes con mayor saldo</h3><div class="actions"><a class="small" href="<?= url('cartera_cliente', array_filter(['empresa' => $emp ?: null])) ?>">Ver todos por cliente</a></div></div>
     <table class="tbl">
       <?php foreach ($topClientes as $tc): ?>
-      <tr><td><a href="<?= url('cartera', array_filter(['empresa' => $emp ?: null, 'b' => $tc['cliente_nombre']])) ?>"><?= e($tc['cliente_nombre']) ?></a> <small class="muted">(<?= (int)$tc['n'] ?>)</small></td><td class="r"><?= money($tc['saldo']) ?></td></tr>
+      <tr><td><a href="<?= url('cartera_cliente', array_filter(['c' => car_cli_clave($tc['cliente_nombre']), 'empresa' => $emp ?: null])) ?>"><?= e($tc['cliente_nombre']) ?></a> <small class="muted">(<?= (int)$tc['n'] ?>)</small></td><td class="r"><?= money($tc['saldo']) ?></td></tr>
       <?php endforeach; ?>
       <?php if (!$topClientes): ?><tr><td class="empty">Sin saldos pendientes.</td></tr><?php endif; ?>
     </table>
@@ -112,6 +113,7 @@ $anios = range((int)date('Y'), (int)date('Y') - 5);
     <select class="form-select" name="anio" data-autosubmit><option value="">Todo año de emisión</option><?= options(array_combine($anios, $anios), get('anio')) ?></select>
     <input class="form-control grow" name="b" value="<?= e(get('b')) ?>" placeholder="N.º factura, cliente, NIT o concepto">
     <div class="actions">
+      <a class="btn btn-outline-primary" href="<?= url('cartera_cliente', array_filter(['empresa' => $emp ?: null])) ?>"><i class="bi bi-people me-1"></i>Por cliente</a>
       <a class="btn btn-outline-secondary" href="index.php?<?= e(http_build_query($qs + ['exportar' => 1])) ?>"><i class="bi bi-download me-1"></i>Excel</a>
       <?php if (can('cartera', 'crear')): ?>
       <a class="btn btn-outline-primary" href="<?= url('cartera_importar') ?>"><i class="bi bi-upload me-1"></i>Importar Excel</a>

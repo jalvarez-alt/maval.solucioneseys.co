@@ -1,6 +1,6 @@
 # MAVAL — contexto del proyecto
 
-Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-18 (v1.12.1 en local; producción en v1.12.0 hasta que se despliegue).
+Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-18 (v1.13.0, igual en local y en producción).
 
 ## Qué es
 Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda (tickets) con avisos por correo, inventario de cómputo y otros equipos (incluye aires acondicionados), planeador de mantenimiento preventivo, roles y permisos, cotizaciones con PDF y envío por correo, gastos, presupuesto, cartera (facturas y abonos) y entradas de dinero. Producción: https://maval.solucioneseys.co (Namecheap, cPanel).
@@ -27,13 +27,13 @@ Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda 
 ## Estructura
 - `index.php`: enrutador. `?p=<pagina>` carga `app/pages/<pagina>.php` (lista blanca en el propio `index.php`), exige login y valida CSRF.
 - `login.php`, `logout.php`, `instalar.php` (instalador; en producción ya se eliminó la ejecución, aquí queda `instalar.php.old`), `archivo.php` (entrega de adjuntos con permiso).
-- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.12.1, `DB_VERSION` 8. Función `q()` para consultas preparadas, `db()` para el PDO.
+- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.13.0, `DB_VERSION` 9. Función `q()` para consultas preparadas, `db()` para el PDO.
 - `app/pages/`: una página por módulo (tickets, inventario, computo*, importar, mantenimiento*, cotizacion*, usuarios, roles, rol_form, empresas, config_correo, gastos, estadisticas, presupuesto, categorias, cartera, factura*, ingresos, perfil, inicio).
 - `app/computo.php`, `app/importar.php`, `app/masivo.php`: lógica de inventario de cómputo, importación masiva Excel/CSV y acciones masivas.
 - `app/mail.php` (SMTP propio sin dependencias, ajustes en tabla `ajustes`, plantilla HTML, `despues()` envía tras responder), `app/notificaciones.php` (avisos de tickets y recordatorios de mantenimiento), `app/mantenimiento.php` (lógica del planeador), `app/cotizaciones.php` (totales, datos del emisor y PDF de cotizaciones en 2 formatos), `cron.php` (tarea diaria de recordatorios).
 - `app/lib/`: `xlsx.php` (genera), `xlsx_read.php` (lee), `pdf.php` — librerías propias, sin dependencias.
 - `app/layout_top.php` / `layout_bottom.php`: plantilla.
-- `sql/schema.sql`: esquema (21 tablas; las migraciones de `migrar()` aplican v2 a v8 sobre bases existentes; una instalación nueva queda en v2 y migra sola a la primera visita). La BD se actualiza sola al entrar como administrador tras subir una versión nueva.
+- `sql/schema.sql`: esquema (21 tablas; las migraciones de `migrar()` aplican v2 a v9 sobre bases existentes; una instalación nueva queda en v2 y migra sola a la primera visita). La BD se actualiza sola al entrar como administrador tras subir una versión nueva.
 - `assets/`: CSS/JS (se versionan por `filemtime`); `assets/img/banner_cotizacion.png` es el encabezado por defecto de las cotizaciones. `uploads/`: adjuntos (protegidos por `.htaccess`).
 - `maval.zip`: paquete de despliegue anterior. `error_log`: log de PHP del servidor.
 
@@ -50,6 +50,9 @@ empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos
 - Módulo `cotizaciones` (menú *Comercial*). Dos formatos: **items** (réplica de Prueba.pdf: encabezado del cliente, tabla Ítem/Referencia/Descripción/Marca/Unidad/Cant/Valor, totales, cuadros «Cordial saludo» y «Condiciones Comerciales») y **propuesta** (réplica de Prueba2.pdf: carta con Descripción, Alcances, Oferta comercial con mano de obra y Condiciones). Consecutivo único para ambos (`cot_siguiente()`, inicia en `ajustes.cot_inicio`). **Propuesta con hasta dos ofertas comerciales** (v5): `cotizacion_items.oferta` (1 o 2) y, en `cotizaciones`, `titulo1/titulo2`, `mano_obra2`, `subtotal2`, `iva2`, `total2` (los campos sin sufijo son la oferta 1). El PDF muestra «3. OFERTAS COMERCIALES» con «Oferta N: título» y un total por oferta; listados y correos muestran «$ a / $ b» (`cot_total_texto()`). Diseño del PDF con los colores del logo (azul `#0e2f56`, coral `#ff304f`; constantes `COT_*`): banner centrado con línea de acento, tablas con encabezado azul y filas alternas, títulos con cuadro coral, texto de Descripción y Alcances **justificado** (`SimplePdf::textJ`), y pie de página (franja azul con `assets/img/logo_cotizacion.png` y los datos de contacto centrados: dirección + teléfonos, correo y web; teléfonos por defecto `Cel - 3113082084`, editables). Cada oferta (y la cotización con ítems) tiene la casilla «Sumar los ítems y mostrar el total» (`cotizaciones.sumar1/sumar2`, por defecto marcada): si se desmarca, el PDF y el detalle muestran solo los valores por ítem, sin subtotal ni total. El campo «Mano de obra» ya no se ofrece; solo se conserva en cotizaciones antiguas que lo traían. Con dos ofertas, la casilla «Sumar las dos ofertas» (`cotizaciones.sumar_ofertas`) agrega «TOTAL OFERTA 1 + OFERTA 2» en el PDF y el detalle.
 - PDF generado con `app/lib/pdf.php`, que ahora soporta imágenes (JPG y PNG 8 bits, con o sin alfa) y `wrap()`. Encabezado por defecto: `assets/img/banner_cotizacion.png`; se puede reemplazar desde *Configurar cotizaciones* (se guarda en `uploads/cot_banner.*`).
 - Se envían por correo con el PDF adjunto desde una **cuenta SMTP propia** (claves `cot_*` en `ajustes`, `correo_config('cot')`), independiente de la de la mesa de ayuda. Permisos: *aprobar* = enviar y cambiar estado; *administrar* = configuración.
+
+## Cartera por cliente y estados de cuenta (v1.13.0, traída de producción)
+- Página `?p=cartera_cliente` (`app/pages/cartera_cliente.php`, lógica en `app/cartera_estado.php`): agrupa por cliente las facturas pendientes (el cliente se identifica por su nombre normalizado, `car_cli_clave()`, y se unen nombres con el mismo NIT) y arma el **estado de cuenta** que se envía por correo; cada envío queda en la tabla `cartera_envios` (BD v9: fecha, cliente, destinatarios, asunto, mensaje, facturas, saldo, resultado). Permiso nuevo `cartera.administrar` = enviar estados de cuenta. `enviar_correo()` acepta `desde_nombre` y `correo_plantilla()` un pie personalizado; el registro `correo_log` ya no se purga a los 90 días. Cartera muestra «Por cliente» y los clientes con mayor saldo enlazan a esa página.
 
 ## Texto final de la cotización con ítems (v1.12.0)
 - Campo `cotizaciones.texto_final` (HTML normalizado, mismo editor con formato que «Alcances»: `cot_editor_rt()` en `cotizacion_form.php`, reutilizable). Se imprime justificado después de los totales y **antes** de los cuadros «Cordial saludo / Condiciones Comerciales» (pasa de página si hace falta; los cuadros no se parten) y se ve en el detalle. Valor por defecto para cotizaciones nuevas: *Configurar cotizaciones → Texto al final* (`ajustes.cot_texto_final`); las cotizaciones existentes quedan sin texto.
@@ -94,7 +97,7 @@ bcrypt, CSRF en formularios, bloqueo tras 8 intentos fallidos (15 min), cierre d
 
 ## Pendientes / notas
 - `.gitignore` ya excluye `app/config.php`, `config.remote.php.bak`, `.vscode/`, `uploads/*`, `error_log`, zips.
-- **Pendiente de desplegar:** v1.12.1 (el texto final de la cotización con ítems ahora se imprime antes de «Cordial saludo» y «Condiciones Comerciales»; sin cambios de BD; archivos: `app/cotizaciones.php`, `app/bootstrap.php`).
+- **Sincronizado el 2026-10-25:** producción estaba en v1.13.0 (cambios hechos fuera de este equipo y sin pasar por git); se trajeron al proyecto local los 9 archivos que diferían (todos adiciones sobre la v1.12.1). Local y producción son idénticos salvo `app/config.php`.
 - **Pendiente tras el despliegue v1.4.0 (hacerlo como administrador en producción):** configurar la cuenta de correo de la mesa de ayuda (*Correo y notificaciones*), la de cotizaciones, los datos de la empresa y el consecutivo inicial (*Configurar cotizaciones*), y crear en cPanel el Cron Job diario `php /home/aqreqjec/maval.solucioneseys.co/cron.php`.
 - Al desplegar una versión nueva: subir los archivos modificados (nunca `app/config.php`), entrar como administrador (la BD se migra sola) y hacer antes copia de la BD.
 - Ideas pendientes: permisos por usuario (hoy son por rol), restringir el acceso por IP, reportes de cotizaciones por cliente.

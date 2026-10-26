@@ -329,3 +329,22 @@ CREATE TABLE IF NOT EXISTS cotizacion_items (
   valor_total DECIMAL(15,2) NOT NULL DEFAULT 0,
   FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v9: estados de cuenta enviados a los clientes (gestiones de cobro)
+CREATE TABLE IF NOT EXISTS cartera_envios (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  fecha DATETIME NOT NULL,
+  cliente_clave VARCHAR(160) NOT NULL,
+  cliente_nombre VARCHAR(150) NOT NULL,
+  cliente_nit VARCHAR(30) NULL,
+  empresa_id INT UNSIGNED NULL,
+  destinatarios VARCHAR(500) NOT NULL,
+  asunto VARCHAR(255) NOT NULL,
+  mensaje TEXT NULL,
+  facturas TEXT NULL,
+  n_facturas INT NOT NULL DEFAULT 0,
+  total_saldo DECIMAL(15,2) NOT NULL DEFAULT 0,
+  ok TINYINT NOT NULL DEFAULT 0,
+  error VARCHAR(500) NULL,
+  usuario_id INT UNSIGNED NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
