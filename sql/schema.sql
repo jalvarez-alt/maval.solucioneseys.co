@@ -330,6 +330,30 @@ CREATE TABLE IF NOT EXISTS cotizacion_items (
   FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- v10: pendientes por facturar
+CREATE TABLE IF NOT EXISTS por_facturar (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  fecha DATE NOT NULL,
+  empresa_id INT UNSIGNED NULL,
+  cliente_nombre VARCHAR(150) NOT NULL,
+  cliente_nit VARCHAR(30) NULL,
+  concepto VARCHAR(255) NOT NULL,
+  detalle TEXT NULL,
+  valor DECIMAL(15,2) NOT NULL DEFAULT 0,
+  referencia VARCHAR(80) NULL,
+  cotizacion_id INT UNSIGNED NULL,
+  fecha_prevista DATE NULL,
+  estado VARCHAR(12) NOT NULL DEFAULT 'Pendiente',
+  factura_id INT UNSIGNED NULL,
+  factura_numero VARCHAR(40) NULL,
+  creado_por INT UNSIGNED NULL,
+  creado DATETIME NULL,
+  actualizado DATETIME NULL,
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE SET NULL,
+  FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE SET NULL,
+  FOREIGN KEY (factura_id) REFERENCES facturas(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- v9: estados de cuenta enviados a los clientes (gestiones de cobro)
 CREATE TABLE IF NOT EXISTS cartera_envios (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,

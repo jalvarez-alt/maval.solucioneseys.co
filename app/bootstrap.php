@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.14.0');
-define('DB_VERSION', 9);
+define('APP_VERSION', '1.15.0');
+define('DB_VERSION', 10);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -134,8 +134,22 @@ function migrar(): void
     if ($v < 8) $run('ALTER TABLE cotizaciones ADD COLUMN texto_final TEXT NULL', true);   // v8: texto al final de la cotización con ítems
     if ($v < 7) { $run('ALTER TABLE cotizaciones ADD COLUMN sumar1 TINYINT NOT NULL DEFAULT 1', true); $run('ALTER TABLE cotizaciones ADD COLUMN sumar2 TINYINT NOT NULL DEFAULT 1', true); } // v7: el usuario decide si cada oferta suma sus ítems y muestra el total
     if ($v < 9) migrar_v9($run, $eng);
+    if ($v < 10) migrar_v10($run, $eng);
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
+}
+
+/** v10: pendientes por facturar (trabajos y servicios realizados que aún no tienen factura). */
+function migrar_v10(callable $run, string $eng): void
+{
+    $run('CREATE TABLE IF NOT EXISTS por_facturar (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, fecha DATE NOT NULL, empresa_id INT UNSIGNED NULL, cliente_nombre VARCHAR(150) NOT NULL, cliente_nit VARCHAR(30) NULL,
+        concepto VARCHAR(255) NOT NULL, detalle TEXT NULL, valor DECIMAL(15,2) NOT NULL DEFAULT 0, referencia VARCHAR(80) NULL, cotizacion_id INT UNSIGNED NULL,
+        fecha_prevista DATE NULL, estado VARCHAR(12) NOT NULL DEFAULT \'Pendiente\', factura_id INT UNSIGNED NULL, factura_numero VARCHAR(40) NULL,
+        creado_por INT UNSIGNED NULL, creado DATETIME NULL, actualizado DATETIME NULL,
+        FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE SET NULL, FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE SET NULL,
+        FOREIGN KEY (factura_id) REFERENCES facturas(id) ON DELETE SET NULL)' . $eng);
+    $run('CREATE INDEX idx_por_facturar_estado ON por_facturar (estado, fecha_prevista)', true);
 }
 
 /** v9: registro de estados de cuenta enviados a los clientes (gestiones de cobro). */
@@ -430,6 +444,7 @@ function badge(string $text, string $kind = ''): string
         'admin' => 'danger', 'usuario' => 'primary', 'empresa' => 'success',
         'Legal' => 'success', 'No legal' => 'danger', 'Libre' => 'secondary', 'Sin registrar' => 'secondary',
         'Bajo' => 'success', 'Medio' => 'warning', 'Alto' => 'danger',
+        'Facturado' => 'success', 'Descartado' => 'secondary',
         'Borrador' => 'secondary', 'Enviada' => 'info', 'Aceptada' => 'success', 'Rechazada' => 'danger',
     ];
     $k = $kind ?: ($map[$text] ?? 'secondary');
@@ -516,6 +531,9 @@ const MODULOS = [
     'cotizaciones' => ['Cotizaciones', 'file-earmark-text', [
         'ver' => 'Consultar cotizaciones y descargar el PDF', 'crear' => 'Crear y duplicar cotizaciones', 'editar' => 'Editar cotizaciones', 'eliminar' => 'Eliminar cotizaciones',
         'aprobar' => 'Enviar por correo y cambiar el estado (aceptada, rechazada, anulada)', 'administrar' => 'Configurar la cuenta de correo, los datos de la empresa, el logo y el consecutivo']],
+    'porfacturar' => ['Por facturar', 'receipt-cutoff', [
+        'ver' => 'Consultar lo pendiente por facturar', 'crear' => 'Registrar pendientes', 'editar' => 'Editar pendientes', 'eliminar' => 'Eliminar pendientes',
+        'aprobar' => 'Marcar como facturado, descartar o reabrir']],
     'gastos' => ['Gastos', 'wallet2', ['ver' => 'Consultar gastos', 'crear' => 'Registrar gastos', 'editar' => 'Editar gastos', 'eliminar' => 'Eliminar gastos']],
     'estadisticas' => ['Estadísticas y presupuesto', 'bar-chart-line', ['ver' => 'Consultar estadísticas y presupuesto', 'editar' => 'Definir el presupuesto']],
     'cartera' => ['Cartera', 'receipt', ['ver' => 'Consultar facturas y abonos', 'crear' => 'Crear facturas y registrar abonos', 'editar' => 'Editar facturas', 'eliminar' => 'Eliminar facturas y abonos', 'aprobar' => 'Anular o reactivar facturas', 'administrar' => 'Enviar estados de cuenta por correo a los clientes']],
@@ -528,6 +546,7 @@ const MODULOS = [
 ];
 // ---------- Cotizaciones ----------
 const COT_FORMATOS = ['items' => 'Cotización con ítems', 'propuesta' => 'Propuesta (descripción, alcances, oferta y condiciones)'];
+const PF_ESTADOS = ['Pendiente', 'Facturado', 'Descartado'];
 const COT_ESTADOS = ['Borrador', 'Enviada', 'Aceptada', 'Rechazada', 'Anulada'];
 const COT_UNIDADES = ['UND', 'M', 'ML', 'M2', 'KG', 'GLB', 'HORA', 'DIA', 'MES', 'SERV', 'PAQ', 'CAJA', 'ROLLO'];
 /** Siguiente número de cotización (único para todos los formatos). */

@@ -87,6 +87,10 @@ $msgDef = "Cordial saludo" . ($c['atencion'] ? ', ' . $c['atencion'] : '') . ".\
     <a class="btn btn-sm btn-outline-primary" target="_blank" href="<?= url('cotizacion', ['id' => $id, 'pdf' => 'ver']) ?>"><i class="bi bi-eye me-1"></i>Ver PDF</a>
     <a class="btn btn-sm btn-outline-primary" href="<?= url('cotizacion', ['id' => $id, 'pdf' => 'bajar']) ?>"><i class="bi bi-download me-1"></i>Descargar</a>
     <?php if (can('cotizaciones', 'crear')): ?><a class="btn btn-sm btn-outline-secondary" href="<?= url('cotizacion_form', ['copiar' => $id]) ?>"><i class="bi bi-copy me-1"></i>Duplicar</a><?php endif; ?>
+    <?php if ($c['estado'] === 'Aceptada' && can('porfacturar', 'ver')): $pfId = (int)val('SELECT id FROM por_facturar WHERE cotizacion_id = ? ORDER BY id DESC LIMIT 1', [$id]); ?>
+      <?php if ($pfId): ?><a class="btn btn-sm btn-outline-success" href="<?= url('por_facturar_form', ['id' => $pfId]) ?>"><i class="bi bi-receipt-cutoff me-1"></i>Ya está en Por facturar</a>
+      <?php elseif (can('porfacturar', 'crear')): ?><a class="btn btn-sm btn-outline-success" href="<?= url('por_facturar_form', ['cotizacion' => $id]) ?>"><i class="bi bi-receipt-cutoff me-1"></i>Pasar a por facturar</a><?php endif; ?>
+    <?php endif; ?>
     <?php if (can('cotizaciones', 'editar')): ?><a class="btn btn-sm btn-outline-primary" href="<?= url('cotizacion_form', ['id' => $id]) ?>"><i class="bi bi-pencil me-1"></i>Editar</a><?php endif; ?>
     <?php if (can('cotizaciones', 'eliminar')): ?><form method="post" data-confirm="¿Eliminar la cotización No. <?= (int)$c['consecutivo'] ?>?"><?= csrf_field() ?><input type="hidden" name="accion" value="eliminar"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form><?php endif; ?>
   </div>

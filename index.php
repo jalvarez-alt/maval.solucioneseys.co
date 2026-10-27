@@ -12,7 +12,7 @@ $pages = [
     'cotizaciones', 'cotizacion', 'cotizacion_form', 'cotizacion_config',
     'usuarios', 'usuario_form', 'roles', 'rol_form', 'empresas', 'empresa_form', 'empresas_importar', 'config_correo',
     'gastos', 'gasto_form', 'estadisticas', 'presupuesto', 'categorias',
-    'cartera', 'cartera_importar', 'cartera_cliente', 'factura', 'factura_form', 'ingresos',
+    'cartera', 'cartera_importar', 'cartera_cliente', 'factura', 'factura_form', 'ingresos', 'por_facturar', 'por_facturar_form',
 ];
 $p = $_GET['p'] ?? 'inicio';
 if (!in_array($p, $pages, true)) $p = 'inicio';
@@ -22,7 +22,7 @@ $modulo = [
     'tickets' => 'tickets', 'ticket' => 'tickets', 'ticket_form' => 'tickets', 'computo' => 'computo', 'computo_lista' => 'computo', 'inventario' => 'inventario',
     'mantenimiento' => 'mantenimiento', 'mantenimiento_form' => 'mantenimiento', 'usuarios' => 'usuarios', 'roles' => 'roles', 'rol_form' => 'roles', 'empresas' => 'empresas', 'empresas_importar' => 'empresas',
     'cotizaciones' => 'cotizaciones', 'cotizacion' => 'cotizaciones', 'cotizacion_form' => 'cotizaciones', 'cotizacion_config' => 'cotizaciones',
-    'config_correo' => 'config', 'gastos' => 'gastos', 'estadisticas' => 'estadisticas', 'categorias' => 'categorias', 'cartera' => 'cartera', 'cartera_importar' => 'cartera', 'cartera_cliente' => 'cartera', 'factura' => 'cartera', 'ingresos' => 'ingresos',
+    'config_correo' => 'config', 'gastos' => 'gastos', 'estadisticas' => 'estadisticas', 'categorias' => 'categorias', 'cartera' => 'cartera', 'cartera_importar' => 'cartera', 'cartera_cliente' => 'cartera', 'factura' => 'cartera', 'ingresos' => 'ingresos', 'por_facturar' => 'porfacturar', 'por_facturar_form' => 'porfacturar',
 ];
 if (isset($modulo[$p])) require_perm($modulo[$p], 'ver');
 

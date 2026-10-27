@@ -44,6 +44,7 @@ if (can('cartera')) {
     $porVencer = all("SELECT f.id, f.numero, f.cliente_nombre, f.fecha_vencimiento, e.nombre AS empresa, $saldo AS saldo $base JOIN empresas e ON e.id = f.empresa_id
         WHERE f.anulada = 0 AND $saldo > 0.5 AND f.fecha_vencimiento <= ? ORDER BY f.fecha_vencimiento LIMIT 8", [date('Y-m-d', strtotime('+7 days'))]);
 }
+if (can('porfacturar')) $pf = one("SELECT COUNT(*) n, COALESCE(SUM(valor),0) t, COALESCE(SUM(CASE WHEN fecha_prevista < ? THEN 1 ELSE 0 END),0) venc FROM por_facturar WHERE estado = 'Pendiente'", [$hoy]);
 if (can('ingresos')) $recMes = (float)val('SELECT COALESCE(SUM(valor),0) FROM pagos WHERE YEAR(fecha) = ? AND MONTH(fecha) = ?', [$anio, $mes]);
 $garantias = $vEquipos && $todos ? all("SELECT id, codigo, tipo, marca, modelo, garantia_hasta FROM equipos WHERE estado <> 'Dado de baja' AND garantia_hasta BETWEEN ? AND ? ORDER BY garantia_hasta LIMIT 6", [$hoy, date('Y-m-d', strtotime('+45 days'))]) : [];
 $colDer = (can('cartera') || $garantias || $vMant);
@@ -69,6 +70,9 @@ $colDer = (can('cartera') || $garantias || $vMant);
   <?php endif; ?>
   <?php if (can('cartera')): ?>
   <a class="kpi <?= $vencido > 0 ? 'warn' : '' ?> text-decoration-none text-reset" href="<?= url('cartera') ?>"><div class="lbl"><i class="bi bi-receipt"></i>Cartera por cobrar</div><div class="v"><?= money($cobrar) ?></div><div class="sub <?= $vencido > 0 ? 'text-danger' : '' ?>">Vencida <?= money($vencido) ?></div></a>
+  <?php endif; ?>
+  <?php if (can('porfacturar')): ?>
+  <a class="kpi <?= $pf['venc'] ? 'warn' : '' ?> text-decoration-none text-reset" href="<?= url('por_facturar') ?>"><div class="lbl"><i class="bi bi-receipt-cutoff"></i>Por facturar</div><div class="v"><?= money($pf['t']) ?></div><div class="sub <?= $pf['venc'] ? 'text-danger' : '' ?>"><?= (int)$pf['n'] ?> pendiente(s)<?= $pf['venc'] ? ' · ' . (int)$pf['venc'] . ' con fecha vencida' : '' ?></div></a>
   <?php endif; ?>
   <?php if (can('ingresos')): ?>
   <a class="kpi text-decoration-none text-reset" href="<?= url('ingresos') ?>"><div class="lbl"><i class="bi bi-cash-coin"></i>Recaudado en <?= MESES[$mes] ?></div><div class="v"><?= money($recMes) ?></div></a>

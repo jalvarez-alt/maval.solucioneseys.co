@@ -6,6 +6,9 @@ if ($id && !$r) not_found();
 $title = $r ? 'Editar factura ' . $r['numero'] : 'Registrar factura';
 $propias = empresas_list('propia');
 $errors = [];
+// Viene de «Por facturar»: se precarga el pendiente y, al guardar la factura, queda marcado como facturado
+$pendId = (int)(post('pendiente') ?: get('pendiente', 0));
+$pend = ($pendId && !$id) ? one("SELECT * FROM por_facturar WHERE id = ? AND estado = 'Pendiente'", [$pendId]) : null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $d = [
@@ -36,7 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (!$errors) {
         if ($r) { update('facturas', $d, $id); flash('Factura actualizada.'); }
-        else { $d['creado_por'] = user()['id']; $d['creado'] = now(); $id = insert('facturas', $d); flash('Factura ' . $d['numero'] . ' registrada por ' . money($d['total']) . '.'); }
+        else { $d['creado_por'] = user()['id']; $d['creado'] = now(); $id = insert('facturas', $d);
+            if ($pend) q("UPDATE por_facturar SET estado = 'Facturado', factura_id = ?, actualizado = ? WHERE id = ?", [$id, now(), $pend['id']]);
+            flash('Factura ' . $d['numero'] . ' registrada por ' . money($d['total']) . '.'); }
         save_uploads('soportes', 'factura', $id);
         redirect(post('otro') ? url('factura_form', ['empresa' => $d['empresa_id']]) : url('factura', ['id' => $id]));
     }
@@ -45,6 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $emp = (int)get('empresa', 0) ?: (count($propias) === 1 ? array_key_first($propias) : 0);
 $r = $r ?? ['empresa_id' => $emp, 'numero' => '', 'cliente_nombre' => '', 'cliente_nit' => '', 'fecha_emision' => today(), 'fecha_vencimiento' => date('Y-m-d', strtotime('+30 days')),
     'concepto' => '', 'subtotal' => '', 'iva' => '', 'retenciones' => '', 'notas' => ''];
+if ($pend && !$_POST) {
+    $r = array_merge($r, ['empresa_id' => isset($propias[(int)$pend['empresa_id']]) ? (int)$pend['empresa_id'] : $emp, 'cliente_nombre' => $pend['cliente_nombre'], 'cliente_nit' => $pend['cliente_nit'],
+        'concepto' => $pend['concepto'], 'subtotal' => $pend['valor'], 'notas' => $pend['referencia'] ? 'Ref.: ' . $pend['referencia'] : '']);
+}
 
 // Sugerir siguiente número según la última factura de cada empresa
 $sig = [];
@@ -62,6 +71,8 @@ ksort($clientes);
   <?php foreach ($errors as $er): ?><div class="alert alert-danger py-2"><?= e($er) ?></div><?php endforeach; ?>
   <form method="post" enctype="multipart/form-data" id="ffac">
     <?= csrf_field() ?>
+    <?php if ($pend): ?><input type="hidden" name="pendiente" value="<?= (int)$pend['id'] ?>">
+    <div class="alert alert-info py-2 small"><i class="bi bi-receipt-cutoff me-1"></i>Facturando un pendiente de <strong><?= e($pend['cliente_nombre']) ?></strong> por <strong><?= money($pend['valor']) ?></strong>. Complete el número y el IVA; al guardar, el pendiente queda marcado como facturado.</div><?php endif; ?>
     <div class="form-grid">
       <div><label class="form-label req">Empresa que factura</label><select class="form-select" name="empresa_id" id="empresa_id" required><option value="">Seleccione…</option><?= options($propias, $r['empresa_id']) ?></select></div>
       <div><label class="form-label req">N.º de factura</label><input class="form-control" name="numero" id="numero" value="<?= e($r['numero']) ?>" required></div>
