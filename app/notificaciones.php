@@ -51,21 +51,15 @@ function notificar_ticket(int $ticketId, string $evento, array $ctx = []): void
         $citado = $msg !== '' ? '<div style="margin:12px 0;padding:10px 14px;border-left:3px solid #0f766e;background:#f8fafc;white-space:pre-wrap">'
             . '<div style="font-size:12px;color:#64748b;margin-bottom:4px">' . e($actorNombre ?: 'Soporte') . ' escribió:</div>' . e($msg) . '</div>' : '';
         $link = app_link('ticket', ['id' => $ticketId]);
-        $envia = fn($para, string $asunto, string $titulo, string $intro) => enviar_correo($para, $asunto, correo_plantilla($titulo, '<p style="margin:0 0 10px">' . $intro . '</p>' . $citado . $ficha, $link, 'Ver el ticket'), ['motivo' => 'ticket']);
+        $avisados = [];   // correos que ya recibieron aviso de este evento
+        $envia = function ($para, string $asunto, string $titulo, string $intro) use (&$avisados, $citado, $ficha, $link) {
+            foreach ((array)$para as $c) $avisados[] = mb_strtolower((string)$c);
+            return enviar_correo($para, $asunto, correo_plantilla($titulo, '<p style="margin:0 0 10px">' . $intro . '</p>' . $citado . $ficha, $link, 'Ver el ticket'), ['motivo' => 'ticket']);
+        };
 
         if ($evento === 'creado') {
             if ($solicitante) $envia($solicitante, "[$cod] Recibimos su solicitud: " . $t['asunto'], 'Recibimos su solicitud', 'Su ticket fue registrado con el código <strong>' . e($cod) . '</strong>. Le avisaremos por este medio cada vez que cambie de estado.');
             if ($soporte) $envia($soporte, "[$cod] Nuevo ticket: " . $t['asunto'], 'Nuevo ticket en la mesa de ayuda', 'Se registró un nuevo ticket' . ($t['sol_nombre'] ? ' de <strong>' . e($t['sol_nombre']) . '</strong>' : '') . '.');
-            // Usuarios que la empresa tiene configurados para enterarse de sus tickets (sin repetir a quien ya recibió aviso)
-            if ($t['empresa_id']) {
-                $yaAvisados = array_map('mb_strtolower', array_merge((array)$soporte, $solicitante ? [$solicitante] : []));
-                $empresaDest = [];
-                foreach (all('SELECT u.id, u.email FROM empresa_notificar n JOIN usuarios u ON u.id = n.usuario_id WHERE n.empresa_id = ? AND u.activo = 1', [(int)$t['empresa_id']]) as $n) {
-                    if ((int)$n['id'] === $actor || !filter_var($n['email'], FILTER_VALIDATE_EMAIL) || in_array(mb_strtolower($n['email']), $yaAvisados, true)) continue;
-                    $empresaDest[] = $n['email'];
-                }
-                if ($empresaDest) $envia($empresaDest, "[$cod] Nuevo ticket de " . ($t['empresa'] ?: 'su empresa') . ': ' . $t['asunto'], 'Nuevo ticket de su empresa', 'Se registró un nuevo ticket' . ($t['sol_nombre'] ? ' de <strong>' . e($t['sol_nombre']) . '</strong>' : '') . ($t['empresa'] ? ' de <strong>' . e($t['empresa']) . '</strong>' : '') . '.');
-            }
         } elseif ($evento === 'estado') {
             $nuevo = $ctx['nuevo'] ?? $t['estado'];
             $texto = [
@@ -86,6 +80,20 @@ function notificar_ticket(int $ticketId, string $evento, array $ctx = []): void
             }
         } elseif ($evento === 'asignado') {
             if ($t['asig_email'] && (int)$t['asignado_id'] !== $actor) $envia($t['asig_email'], "[$cod] Se le asignó un ticket: " . $t['asunto'], 'Se le asignó un ticket', 'Se le asignó este ticket para su atención.');
+        }
+        // Usuarios que la empresa tiene configurados: se enteran de la creación, las respuestas y los cambios de estado (sin repetir a quien ya recibió aviso)
+        if ($t['empresa_id'] && in_array($evento, ['creado', 'estado', 'respuesta'], true)) {
+            $dest = [];
+            foreach (all('SELECT u.id, u.email FROM empresa_notificar n JOIN usuarios u ON u.id = n.usuario_id WHERE n.empresa_id = ? AND u.activo = 1', [(int)$t['empresa_id']]) as $n) {
+                if ((int)$n['id'] === $actor || !filter_var($n['email'], FILTER_VALIDATE_EMAIL) || in_array(mb_strtolower($n['email']), $avisados, true)) continue;
+                $dest[] = $n['email'];
+            }
+            if ($dest) {
+                $de = ' del ticket <strong>' . e($cod) . '</strong>' . ($t['sol_nombre'] ? ' de <strong>' . e($t['sol_nombre']) . '</strong>' : '') . ($t['empresa'] ? ' (' . e($t['empresa']) . ')' : '');
+                if ($evento === 'creado') $envia($dest, "[$cod] Nuevo ticket de " . ($t['empresa'] ?: 'su empresa') . ': ' . $t['asunto'], 'Nuevo ticket de su empresa', 'Se registró un nuevo ticket' . ($t['sol_nombre'] ? ' de <strong>' . e($t['sol_nombre']) . '</strong>' : '') . ($t['empresa'] ? ' de <strong>' . e($t['empresa']) . '</strong>' : '') . '.');
+                elseif ($evento === 'estado') $envia($dest, "[$cod] Estado: " . ($ctx['nuevo'] ?? $t['estado']) . ' — ' . $t['asunto'], 'El ticket cambió a «' . ($ctx['nuevo'] ?? $t['estado']) . '»', 'El estado' . $de . ' pasó a <strong>' . e($ctx['nuevo'] ?? $t['estado']) . '</strong>' . (!empty($ctx['anterior']) ? ' (antes «' . e($ctx['anterior']) . '»)' : '') . ($actorNombre ? ' por ' . e($actorNombre) : '') . '.');
+                else $envia($dest, "[$cod] Nueva respuesta: " . $t['asunto'], 'Nueva respuesta en un ticket de su empresa', 'Hay una nueva respuesta' . $de . ($actorNombre ? ', escrita por ' . e($actorNombre) : '') . '.');
+            }
         }
     });
 }

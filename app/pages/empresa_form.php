@@ -53,8 +53,8 @@ $r = $r ?? ['nombre' => '', 'nit' => '', 'tipo' => 'cliente', 'contacto' => '', 
       <div class="d-flex align-items-end"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="activo" value="1" id="act" <?= $r['activo'] ? 'checked' : '' ?>><label class="form-check-label" for="act">Activa</label></div></div>
     </div>
     <div class="mt-4">
-      <label class="form-label mb-0">Usuarios a notificar cuando se envía un ticket de esta empresa</label>
-      <div class="form-text mb-2">Reciben un correo cada vez que se crea un ticket de esta empresa (además del solicitante y el equipo de soporte).</div>
+      <label class="form-label mb-0">Usuarios a notificar de los tickets de esta empresa</label>
+      <div class="form-text mb-2">Reciben un correo cuando se crea un ticket de esta empresa, cuando alguien responde y cuando cambia de estado (además del solicitante y el equipo de soporte; las notas internas no se envían).</div>
       <?php if (!$usuarios): ?><div class="text-muted small">No hay usuarios activos.</div><?php else: ?>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 16px;max-height:260px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <?php foreach ($usuarios as $uid => $us): ?>
