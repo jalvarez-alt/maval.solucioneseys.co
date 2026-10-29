@@ -1,6 +1,6 @@
 # MAVAL — contexto del proyecto
 
-Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-29 (v1.16.0 en local; producción en v1.15.0 hasta que se despliegue).
+Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-29 (v1.16.1 en local; producción en v1.16.0 hasta que se despliegue).
 
 ## Qué es
 Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda (tickets) con avisos por correo, inventario de cómputo y otros equipos (incluye aires acondicionados), planeador de mantenimiento preventivo, roles y permisos, cotizaciones con PDF y envío por correo, gastos, presupuesto, cartera (facturas y abonos) y entradas de dinero. Producción: https://maval.solucioneseys.co (Namecheap, cPanel).
@@ -27,7 +27,7 @@ Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda 
 ## Estructura
 - `index.php`: enrutador. `?p=<pagina>` carga `app/pages/<pagina>.php` (lista blanca en el propio `index.php`), exige login y valida CSRF.
 - `login.php`, `logout.php`, `instalar.php` (instalador; en producción ya se eliminó la ejecución, aquí queda `instalar.php.old`), `archivo.php` (entrega de adjuntos con permiso).
-- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.16.0, `DB_VERSION` 11. Función `q()` para consultas preparadas, `db()` para el PDO.
+- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.16.1, `DB_VERSION` 11. Función `q()` para consultas preparadas, `db()` para el PDO.
 - `app/pages/`: una página por módulo (tickets, inventario, computo*, importar, mantenimiento*, cotizacion*, usuarios, roles, rol_form, empresas, config_correo, gastos, estadisticas, presupuesto, categorias, cartera, factura*, ingresos, perfil, inicio).
 - `app/computo.php`, `app/importar.php`, `app/masivo.php`: lógica de inventario de cómputo, importación masiva Excel/CSV y acciones masivas.
 - `app/mail.php` (SMTP propio sin dependencias, ajustes en tabla `ajustes`, plantilla HTML, `despues()` envía tras responder), `app/notificaciones.php` (avisos de tickets y recordatorios de mantenimiento), `app/mantenimiento.php` (lógica del planeador), `app/cotizaciones.php` (totales, datos del emisor y PDF de cotizaciones en 2 formatos), `cron.php` (tarea diaria de recordatorios).
@@ -53,6 +53,9 @@ empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos
 
 ## Usuarios a notificar por empresa (v1.16.0)
 - Tabla `empresa_notificar` (empresa_id, usuario_id; DB v11). En Empresas → editar se marcan los usuarios activos que reciben correo cuando se **crea** un ticket de esa empresa (`notificar_ticket()` evento `creado`, en `app/notificaciones.php`). No se repite a quien ya recibe aviso como solicitante o soporte, ni al autor del ticket.
+
+## Búsqueda de tickets (v1.16.1)
+- En `tickets.php` la búsqueda tiene botón *Buscar* y *Limpiar*, y busca por código, asunto, descripción, solicitante, empresa y equipo. Al buscar se incluyen también los tickets cerrados (el filtro «Sin cerrar» se cambia a «Todos los estados»).
 
 ## Por facturar (v1.15.0)
 - Módulo `porfacturar` (menú *Finanzas → Por facturar*, con contador de pendientes): lista de trabajos/servicios realizados que aún no tienen factura. Tabla `por_facturar` (BD v10): fecha, cliente y NIT, concepto, detalle, valor, referencia, empresa que factura, fecha prevista de facturación, estado (Pendiente / Facturado / Descartado), enlace a la factura (`factura_id`) o número manual (`factura_numero`) y a la cotización (`cotizacion_id`). Páginas `por_facturar` (indicadores, filtros, Excel, pendiente por cliente) y `por_facturar_form`.

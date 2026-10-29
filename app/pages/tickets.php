@@ -4,6 +4,7 @@ $title = 'Mesa de ayuda';
 $where = [$scope];
 
 $estado = get('estado', 'activos');
+if (trim((string)get('b')) !== '' && $estado === 'activos') $estado = 'todos';   // al buscar se incluyen también los tickets cerrados
 if ($estado === 'activos') { $where[] = "t.estado IN ('Abierto','En proceso','En espera')"; }
 elseif (in_array($estado, TICKET_ESTADOS, true)) { $where[] = 't.estado = ?'; $params[] = $estado; }
 if (($pr = get('prioridad')) && in_array($pr, TICKET_PRIORIDADES, true)) { $where[] = 't.prioridad = ?'; $params[] = $pr; }
@@ -11,7 +12,10 @@ if (($cat = get('categoria')) && in_array($cat, TICKET_CATEGORIAS, true)) { $whe
 if (alcance() === 'todos' && ($emp = (int)get('empresa', 0))) { $where[] = 't.empresa_id = ?'; $params[] = $emp; }
 if (alcance() === 'todos' && get('asignado') === 'yo') { $where[] = 't.asignado_id = ?'; $params[] = (int)user()['id']; }
 if (alcance() === 'todos' && get('asignado') === 'sin') { $where[] = 't.asignado_id IS NULL'; }
-if ($b = get('b')) { $where[] = '(t.asunto LIKE ? OR t.codigo LIKE ? OR t.descripcion LIKE ?)'; array_push($params, "%$b%", "%$b%", "%$b%"); }
+if ($b = trim((string)get('b'))) {
+    $where[] = '(t.asunto LIKE ? OR t.codigo LIKE ? OR t.descripcion LIKE ? OR t.id IN (SELECT u.id FROM tickets u LEFT JOIN usuarios su ON su.id = u.solicitante_id LEFT JOIN empresas eu ON eu.id = u.empresa_id LEFT JOIN equipos qu ON qu.id = u.equipo_id WHERE su.nombre LIKE ? OR eu.nombre LIKE ? OR qu.codigo LIKE ?))';
+    array_push($params, "%$b%", "%$b%", "%$b%", "%$b%", "%$b%", "%$b%");
+}
 $w = implode(' AND ', $where);
 
 $per = 25;
@@ -43,7 +47,9 @@ $qs = array_filter(['p' => 'tickets', 'estado' => $estado, 'prioridad' => get('p
 <div class="panel">
   <form class="toolbar" method="get">
     <input type="hidden" name="p" value="tickets">
-    <input class="form-control grow" name="b" value="<?= e(get('b')) ?>" placeholder="Buscar por código, asunto o descripción">
+    <input class="form-control grow" name="b" value="<?= e(get('b')) ?>" placeholder="Buscar por código, asunto, descripción, solicitante, empresa o equipo">
+    <button class="btn btn-outline-primary"><i class="bi bi-search me-1"></i>Buscar</button>
+    <?php if (get('b') !== null && get('b') !== ''): ?><a class="btn btn-outline-secondary" href="<?= url('tickets') ?>">Limpiar</a><?php endif; ?>
     <select class="form-select" name="estado" data-autosubmit>
       <option value="activos" <?= $estado === 'activos' ? 'selected' : '' ?>>Sin cerrar</option>
       <option value="todos" <?= $estado === 'todos' ? 'selected' : '' ?>>Todos los estados</option>
