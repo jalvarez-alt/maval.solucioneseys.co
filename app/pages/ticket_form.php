@@ -14,8 +14,8 @@ $staff = can('tickets', 'administrar'); // puede elegir solicitante, empresa y t
 
 // Equipos que el usuario puede vincular
 [$es, $ep] = equipo_scope('eq');
-$equipos = all("SELECT eq.id, eq.codigo, eq.tipo, eq.marca, eq.modelo, eq.empresa_id, emp.nombre AS empresa
-    FROM equipos eq LEFT JOIN empresas emp ON emp.id = eq.empresa_id
+$equipos = all("SELECT eq.id, eq.codigo, eq.tipo, eq.marca, eq.modelo, eq.empresa_id, emp.nombre AS empresa, COALESCE(NULLIF(eq.responsable, ''), us.nombre) AS usuario
+    FROM equipos eq LEFT JOIN empresas emp ON emp.id = eq.empresa_id LEFT JOIN usuarios us ON us.id = eq.usuario_id
     WHERE $es AND eq.estado <> 'Dado de baja' ORDER BY emp.nombre, eq.codigo", $ep);
 $equipoIds = array_map('intval', array_column($equipos, 'id'));
 
@@ -95,7 +95,7 @@ if (!$r['categoria'] && $r['equipo_id']) {
       <div class="full"><label class="form-label">Equipo relacionado</label>
         <select class="form-select" name="equipo_id"><option value="">— Ninguno / no aplica —</option>
           <?php foreach ($equipos as $q): ?>
-            <option value="<?= (int)$q['id'] ?>" <?= (int)$r['equipo_id'] === (int)$q['id'] ? 'selected' : '' ?>><?= e($q['codigo'] . ' · ' . $q['tipo'] . ' ' . trim(($q['marca'] ?? '') . ' ' . ($q['modelo'] ?? '')) . ($q['empresa'] && alcance() !== 'empresa' ? ' — ' . $q['empresa'] : '')) ?></option>
+            <option value="<?= (int)$q['id'] ?>" <?= (int)$r['equipo_id'] === (int)$q['id'] ? 'selected' : '' ?>><?= e($q['codigo'] . ' · ' . trim($q['tipo'] . ' ' . ($q['marca'] ?? '')) . ($q['usuario'] ? ' — ' . $q['usuario'] : '') . ($q['empresa'] && alcance() !== 'empresa' ? ' — ' . $q['empresa'] : '')) ?></option>
           <?php endforeach; ?>
         </select>
       </div>
