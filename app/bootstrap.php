@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.15.0');
-define('DB_VERSION', 10);
+define('APP_VERSION', '1.16.0');
+define('DB_VERSION', 11);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -135,8 +135,17 @@ function migrar(): void
     if ($v < 7) { $run('ALTER TABLE cotizaciones ADD COLUMN sumar1 TINYINT NOT NULL DEFAULT 1', true); $run('ALTER TABLE cotizaciones ADD COLUMN sumar2 TINYINT NOT NULL DEFAULT 1', true); } // v7: el usuario decide si cada oferta suma sus ítems y muestra el total
     if ($v < 9) migrar_v9($run, $eng);
     if ($v < 10) migrar_v10($run, $eng);
+    if ($v < 11) migrar_v11($run, $eng);
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
+}
+
+/** v11: usuarios que reciben aviso por correo cuando se crea un ticket de una empresa. */
+function migrar_v11(callable $run, string $eng): void
+{
+    $run('CREATE TABLE IF NOT EXISTS empresa_notificar (
+        empresa_id INT UNSIGNED NOT NULL, usuario_id INT UNSIGNED NOT NULL, PRIMARY KEY (empresa_id, usuario_id),
+        FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE, FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE)' . $eng);
 }
 
 /** v10: pendientes por facturar (trabajos y servicios realizados que aún no tienen factura). */

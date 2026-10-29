@@ -372,3 +372,12 @@ CREATE TABLE IF NOT EXISTS cartera_envios (
   error VARCHAR(500) NULL,
   usuario_id INT UNSIGNED NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v11: usuarios que reciben aviso por correo cuando se crea un ticket de la empresa
+CREATE TABLE IF NOT EXISTS empresa_notificar (
+  empresa_id INT UNSIGNED NOT NULL,
+  usuario_id INT UNSIGNED NOT NULL,
+  PRIMARY KEY (empresa_id, usuario_id),
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -56,6 +56,16 @@ function notificar_ticket(int $ticketId, string $evento, array $ctx = []): void
         if ($evento === 'creado') {
             if ($solicitante) $envia($solicitante, "[$cod] Recibimos su solicitud: " . $t['asunto'], 'Recibimos su solicitud', 'Su ticket fue registrado con el código <strong>' . e($cod) . '</strong>. Le avisaremos por este medio cada vez que cambie de estado.');
             if ($soporte) $envia($soporte, "[$cod] Nuevo ticket: " . $t['asunto'], 'Nuevo ticket en la mesa de ayuda', 'Se registró un nuevo ticket' . ($t['sol_nombre'] ? ' de <strong>' . e($t['sol_nombre']) . '</strong>' : '') . '.');
+            // Usuarios que la empresa tiene configurados para enterarse de sus tickets (sin repetir a quien ya recibió aviso)
+            if ($t['empresa_id']) {
+                $yaAvisados = array_map('mb_strtolower', array_merge((array)$soporte, $solicitante ? [$solicitante] : []));
+                $empresaDest = [];
+                foreach (all('SELECT u.id, u.email FROM empresa_notificar n JOIN usuarios u ON u.id = n.usuario_id WHERE n.empresa_id = ? AND u.activo = 1', [(int)$t['empresa_id']]) as $n) {
+                    if ((int)$n['id'] === $actor || !filter_var($n['email'], FILTER_VALIDATE_EMAIL) || in_array(mb_strtolower($n['email']), $yaAvisados, true)) continue;
+                    $empresaDest[] = $n['email'];
+                }
+                if ($empresaDest) $envia($empresaDest, "[$cod] Nuevo ticket de " . ($t['empresa'] ?: 'su empresa') . ': ' . $t['asunto'], 'Nuevo ticket de su empresa', 'Se registró un nuevo ticket' . ($t['sol_nombre'] ? ' de <strong>' . e($t['sol_nombre']) . '</strong>' : '') . ($t['empresa'] ? ' de <strong>' . e($t['empresa']) . '</strong>' : '') . '.');
+            }
         } elseif ($evento === 'estado') {
             $nuevo = $ctx['nuevo'] ?? $t['estado'];
             $texto = [
