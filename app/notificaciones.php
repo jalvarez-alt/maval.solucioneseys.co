@@ -81,6 +81,15 @@ function notificar_ticket(int $ticketId, string $evento, array $ctx = []): void
         } elseif ($evento === 'asignado') {
             if ($t['asig_email'] && (int)$t['asignado_id'] !== $actor) $envia($t['asig_email'], "[$cod] Se le asignó un ticket: " . $t['asunto'], 'Se le asignó un ticket', 'Se le asignó este ticket para su atención.');
         }
+        // Correos adicionales que el técnico escribió al responder (sin repetir a quien ya recibió aviso)
+        if (in_array($evento, ['estado', 'respuesta'], true) && !empty($ctx['extra'])) {
+            $dest = array_values(array_filter(array_unique(array_map('mb_strtolower', (array)$ctx['extra'])), fn($c) => filter_var($c, FILTER_VALIDATE_EMAIL) && !in_array($c, $avisados, true)));
+            if ($dest) {
+                $nuevo = $ctx['nuevo'] ?? $t['estado'];
+                if ($evento === 'estado') $envia($dest, "[$cod] Estado: $nuevo — " . $t['asunto'], 'Actualización del ticket ' . $cod, 'El ticket' . ($t['sol_nombre'] ? ' de <strong>' . e($t['sol_nombre']) . '</strong>' : '') . ' pasó a <strong>' . e($nuevo) . '</strong>' . ($actorNombre ? ' por ' . e($actorNombre) : '') . '.');
+                else $envia($dest, "[$cod] Actualización: " . $t['asunto'], 'Actualización del ticket ' . $cod, ($actorNombre ? e($actorNombre) . ' ' : 'Soporte ') . 'le informa sobre este ticket' . ($t['sol_nombre'] ? ' de <strong>' . e($t['sol_nombre']) . '</strong>' : '') . '.');
+            }
+        }
         // Usuarios que la empresa tiene configurados: se enteran de la creación, las respuestas y los cambios de estado (sin repetir a quien ya recibió aviso)
         if ($t['empresa_id'] && in_array($evento, ['creado', 'estado', 'respuesta'], true)) {
             $dest = [];

@@ -57,9 +57,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             // Correo: un solo aviso por envío (el cambio de estado lleva el mensaje; las notas internas no se envían)
             $publico = $interno ? '' : ($msg !== '' ? $msg : ($hayArchivos ? '(archivo adjunto)' : ''));
-            if ($cambio) notificar_ticket($id, 'estado', ['anterior' => $t['estado'], 'nuevo' => $cambio, 'mensaje' => $publico]);
-            elseif ($publico !== '') notificar_ticket($id, 'respuesta', ['mensaje' => $publico]);
-            flash('Respuesta registrada.');
+            // Correos adicionales (solo técnicos): también reciben este aviso
+            $extra = [];
+            if ($staff && trim((string)post('copia_correos', '')) !== '') {
+                foreach (preg_split('/[,;\s]+/', (string)post('copia_correos'), -1, PREG_SPLIT_NO_EMPTY) as $c) {
+                    if (filter_var($c, FILTER_VALIDATE_EMAIL)) $extra[] = mb_strtolower($c); else flash('El correo «' . $c . '» no es válido y no se notificó.', 'warning');
+                }
+                if ($interno) { flash('Las notas internas no se envían por correo.', 'warning'); $extra = []; }
+            }
+            if ($cambio) notificar_ticket($id, 'estado', ['anterior' => $t['estado'], 'nuevo' => $cambio, 'mensaje' => $publico, 'extra' => $extra]);
+            elseif ($publico !== '') notificar_ticket($id, 'respuesta', ['mensaje' => $publico, 'extra' => $extra]);
+            flash('Respuesta registrada.' . ($extra && correo_activo() ? ' Se notificó a: ' . implode(', ', $extra) . '.' : ''));
         }
     } elseif ($accion === 'cerrar' && !$staff && $t['estado'] === 'Resuelto') {
         if (cambiar_estado($t, 'Cerrado', (int)$u['id'])) notificar_ticket($id, 'estado', ['anterior' => 'Resuelto', 'nuevo' => 'Cerrado']);
@@ -130,7 +138,8 @@ function duracion(string $desde, ?string $hasta): string
         <?= csrf_field() ?><input type="hidden" name="accion" value="responder">
         <label class="form-label">Responder</label>
         <textarea class="form-control mb-2" name="mensaje" rows="4" placeholder="<?= $staff ? 'Respuesta para el solicitante o nota interna…' : 'Agregue información o responda al técnico…' ?>"></textarea>
-        <input class="form-control form-control-sm mb-3" type="file" name="adjuntos[]" multiple>
+        <input class="form-control form-control-sm mb-2" type="file" name="adjuntos[]" multiple>
+        <?php if ($staff): ?><input class="form-control form-control-sm mb-3" type="text" name="copia_correos" placeholder="Notificar también a (correos separados por coma, opcional)" autocomplete="off"><?php else: ?><div class="mb-3"></div><?php endif; ?>
         <div class="d-flex flex-wrap gap-3 align-items-center">
           <?php if ($staff): ?>
             <div class="d-flex align-items-center gap-2"><span class="small muted">Estado:</span><select class="form-select form-select-sm" name="estado" style="width:auto"><?= options(array_filter(TICKET_ESTADOS, fn($e) => $puedeAprobar || $e === $t['estado'] || !in_array($e, ['Resuelto', 'Cerrado'], true)), $t['estado'], false) ?></select></div>
