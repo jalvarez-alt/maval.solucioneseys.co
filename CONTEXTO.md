@@ -1,6 +1,6 @@
 # MAVAL — contexto del proyecto
 
-Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-29 (v1.17.1 en local; producción en v1.17.0 hasta que se despliegue).
+Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-11-06 (local y producción en v1.17.1, BD v11; todo lo desplegado está en git).
 
 ## Qué es
 Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda (tickets) con avisos por correo, inventario de cómputo y otros equipos (incluye aires acondicionados), planeador de mantenimiento preventivo, roles y permisos, cotizaciones con PDF y envío por correo, gastos, presupuesto, cartera (facturas y abonos) y entradas de dinero. Producción: https://maval.solucioneseys.co (Namecheap, cPanel).
@@ -16,7 +16,7 @@ Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda 
 ## Servidor (SFTP)
 - Config en `.vscode/sftp.json` (extensión SFTP de VS Code). Ojo: ahora tiene `uploadOnSave: true` (sube al guardar); revisar antes de editar archivos sensibles.
 - Despliegue por línea de comandos usado el 2026-10-18: `WinSCP.com /ini=nul /script=...` con `open sftp://USER:PASS@host:21098/ -hostkey=*` y `put` por archivo (rutas locales con `\`; hay que crear `assets/img` si no existe). Los scripts con la contraseña se borran al terminar.
-- Estado de producción: **v1.4.0, BD en versión 4** (migrada el 2026-10-18). Respaldo previo (BD v2 + archivos reemplazados) quedó en la carpeta temporal de la sesión de ese día; para futuros despliegues repetir el respaldo.
+- Estado de producción: **v1.17.1, BD en versión 11** (última subida el 2026-11-06). Antes de cada despliegue: respaldar la BD (PHP temporal con token) y los archivos que se reemplazan, y comprobar que producción coincide con el último commit (en el pasado hubo cambios hechos directo en el servidor). Tras subir, verificar login, versión de BD, conteos y `error_log`, y borrar los scripts temporales.
 - Host `199.188.201.4`, puerto `21098`, usuario `aqreqjec`, `remotePath` = `/home/aqreqjec/maval.solucioneseys.co`.
 - La cuenta **no tiene shell SSH** (solo SFTP) y el MySQL remoto **no acepta conexiones externas**.
 - Para exportar la BD de producción se usó un PHP temporal con token subido por SFTP, ejecutado por HTTPS y borrado de inmediato. Repetir el mismo método si hace falta una copia nueva.
@@ -38,7 +38,7 @@ Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda 
 - `maval.zip`: paquete de despliegue anterior. `error_log`: log de PHP del servidor.
 
 ## Base de datos (tablas)
-empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos, tickets, ticket_comentarios, adjuntos, gasto_categorias, gastos, presupuestos, facturas, pagos, **roles, rol_permisos, ajustes, correo_log, mantenimientos, cotizaciones, cotizacion_items** (+ `app_meta`, usada para versionado del esquema).
+empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos, tickets, ticket_comentarios, adjuntos, gasto_categorias, gastos, presupuestos, facturas, pagos, **roles, rol_permisos, ajustes, correo_log, mantenimientos, cotizaciones, cotizacion_items, cartera_envios, por_facturar, empresa_notificar** (+ `app_meta`, usada para versionado del esquema).
 
 ## Roles y permisos (v1.4.0)
 - Cada usuario tiene un **rol** (`usuarios.rol_id`). Roles del sistema: Administrador (acceso total, no editable), Usuario y Empresa (permisos editables). Se pueden crear roles propios en *Roles y permisos*.
