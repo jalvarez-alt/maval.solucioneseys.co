@@ -1,6 +1,6 @@
 # MAVAL — contexto del proyecto
 
-Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-29 (v1.17.0 en local; producción en v1.16.3 hasta que se despliegue).
+Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-10-29 (v1.17.1 en local; producción en v1.17.0 hasta que se despliegue).
 
 ## Qué es
 Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda (tickets) con avisos por correo, inventario de cómputo y otros equipos (incluye aires acondicionados), planeador de mantenimiento preventivo, roles y permisos, cotizaciones con PDF y envío por correo, gastos, presupuesto, cartera (facturas y abonos) y entradas de dinero. Producción: https://maval.solucioneseys.co (Namecheap, cPanel).
@@ -27,7 +27,7 @@ Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda 
 ## Estructura
 - `index.php`: enrutador. `?p=<pagina>` carga `app/pages/<pagina>.php` (lista blanca en el propio `index.php`), exige login y valida CSRF.
 - `login.php`, `logout.php`, `instalar.php` (instalador; en producción ya se eliminó la ejecución, aquí queda `instalar.php.old`), `archivo.php` (entrega de adjuntos con permiso).
-- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.17.0, `DB_VERSION` 11. Función `q()` para consultas preparadas, `db()` para el PDO.
+- `app/bootstrap.php`: núcleo (config, PDO, sesión, CSRF, auth, permisos `can()`/`require_perm()`, migraciones, catálogos). `APP_VERSION` 1.17.1, `DB_VERSION` 11. Función `q()` para consultas preparadas, `db()` para el PDO.
 - `app/pages/`: una página por módulo (tickets, inventario, computo*, importar, mantenimiento*, cotizacion*, usuarios, roles, rol_form, empresas, config_correo, gastos, estadisticas, presupuesto, categorias, cartera, factura*, ingresos, perfil, inicio).
 - `app/computo.php`, `app/importar.php`, `app/masivo.php`: lógica de inventario de cómputo, importación masiva Excel/CSV y acciones masivas.
 - `app/mail.php` (SMTP propio sin dependencias, ajustes en tabla `ajustes`, plantilla HTML, `despues()` envía tras responder), `app/notificaciones.php` (avisos de tickets y recordatorios de mantenimiento), `app/mantenimiento.php` (lógica del planeador), `app/cotizaciones.php` (totales, datos del emisor y PDF de cotizaciones en 2 formatos), `cron.php` (tarea diaria de recordatorios).
@@ -53,6 +53,9 @@ empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos
 
 ## Usuarios a notificar por empresa (v1.16.0)
 - Tabla `empresa_notificar` (empresa_id, usuario_id; DB v11). En Empresas → editar se marcan los usuarios activos que reciben correo cuando se **crea** un ticket de esa empresa y (v1.16.2) en cada **respuesta pública** y **cambio de estado** (`notificar_ticket()` al final del cierre, en `app/notificaciones.php`; no en asignaciones ni notas internas). No se repite a quien ya recibe aviso como solicitante o soporte, ni al autor del ticket.
+
+## Condiciones comerciales ajustadas al cuadro (v1.17.1)
+- En el PDF de la cotización con ítems (`cot_pdf_items()`), cada condición (validez, tiempo de entrega, forma de pago) se parte en renglones con `SimplePdf::wrap()` para no salirse del cuadro; los dos cuadros inferiores crecen por igual si hace falta. «Forma de pago» ahora lleva «:» como las demás y las condiciones vacías no se muestran.
 
 ## Correos adicionales al responder un ticket (v1.17.0)
 - En la respuesta del técnico (`ticket.php`) hay un campo «Notificar también a» con uno o varios correos (separados por coma, punto y coma o espacio). Esos correos reciben el mismo aviso (respuesta o cambio de estado, con el texto público) además del solicitante, soporte y usuarios de la empresa, sin duplicados. Solo lo ven los técnicos; no se guarda, aplica a ese envío. Las notas internas no envían correo. Se pasa como `ctx['extra']` a `notificar_ticket()`.

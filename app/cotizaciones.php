@@ -282,6 +282,14 @@ function cot_pdf_items(array $c, array $items): SimplePdf
         cot_rich_pdf($pdf, (string)$c['texto_final'], $y, $L, $W, $asegurar);
         $y += 14;
     }
+    // Condiciones comerciales: cada condición se ajusta al ancho del cuadro (si es larga baja de renglón) y ambos cuadros crecen por igual
+    $cx = $L + 205 + 14; $cw2 = $W - 205 - 14 - 60;
+    $condLineas = [];
+    foreach ([['Validez de la oferta : ', $c['validez']], ['Tiempo de entrega : ', $c['tiempo_entrega']], ['Forma de pago : ', $c['forma_pago']]] as [$k, $v]) {
+        if (trim((string)$v) === '') continue;
+        foreach ($pdf->wrap($k . trim((string)$v), $cw2 - 26, 10, true) as $ln) $condLineas[] = $ln;
+    }
+    $hBox = max($hBox, 19 + 14 + 14 * count($condLineas) + 2);
     if ($y + $hBox > $bottom) { $pie($pdf->pageNo()); $pdf->addPage(); $y = 40.0; }   // los cuadros no se parten entre páginas
     // Cuadros inferiores: saludo y condiciones comerciales
     $pdf->rect($L, $y, 205, $hBox, COT_TINTE, COT_LINEA, 0.8);
@@ -290,14 +298,11 @@ function cot_pdf_items(array $c, array $items): SimplePdf
     $pdf->text($L, $linea, 'Cordial saludo', 10, true, COT_CORAL, 'C', 205); $linea += 14;
     $pdf->text($L, $linea, (string)$em['firmante'], 10, true, COT_NAVY, 'C', 205); $linea += 14;
     foreach (preg_split('/\R/', trim((string)$em['firma_lineas'])) as $ln) { if ($linea > $y + $hBox - 6) break; $pdf->text($L, $linea, $ln, 10, true, COT_TEXTO, 'C', 205); $linea += 14; }
-    $cx = $L + 205 + 14; $cw2 = $W - 205 - 14 - 60;
     $pdf->rect($cx, $y, $cw2, $hBox, COT_TINTE, COT_LINEA, 0.8);
     $pdf->rect($cx, $y, 4, $hBox, COT_NAVY);
     $linea = $y + 19;
     $pdf->text($cx, $linea, 'Condiciones Comerciales', 10, true, COT_CORAL, 'C', $cw2); $linea += 14;
-    foreach ([['Validez de la oferta : ', $c['validez']], ['Tiempo de entrega : ', $c['tiempo_entrega']], ['Forma de pago ', $c['forma_pago']]] as [$k, $v]) {
-        $pdf->text($cx, $linea, $k . $v, 10, true, COT_NAVY, 'C', $cw2); $linea += 14;
-    }
+    foreach ($condLineas as $ln) { $pdf->text($cx + 4, $linea, $ln, 10, true, COT_NAVY, 'C', $cw2 - 4); $linea += 14; }
     $pie($pdf->pageNo());
     return $pdf;
 }
