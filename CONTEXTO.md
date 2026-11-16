@@ -1,6 +1,6 @@
 # MAVAL — contexto del proyecto
 
-Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-11-16 (v1.18.0 en local; producción en v1.17.1 hasta que se despliegue).
+Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-11-16 (producción en v1.18.0, BD v12, igual al último commit; hay endurecimiento de seguridad sin desplegar, ver «Revisión de seguridad»).
 
 ## Qué es
 Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda (tickets) con avisos por correo, inventario de cómputo y otros equipos (incluye aires acondicionados), planeador de mantenimiento preventivo, roles y permisos, cotizaciones con PDF y envío por correo, gastos, presupuesto, cartera (facturas y abonos) y entradas de dinero. Producción: https://maval.solucioneseys.co (Namecheap, cPanel).
@@ -16,7 +16,7 @@ Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda 
 ## Servidor (SFTP)
 - Config en `.vscode/sftp.json` (extensión SFTP de VS Code). Ojo: ahora tiene `uploadOnSave: true` (sube al guardar); revisar antes de editar archivos sensibles.
 - Despliegue por línea de comandos usado el 2026-10-18: `WinSCP.com /ini=nul /script=...` con `open sftp://USER:PASS@host:21098/ -hostkey=*` y `put` por archivo (rutas locales con `\`; hay que crear `assets/img` si no existe). Los scripts con la contraseña se borran al terminar.
-- Estado de producción: **v1.17.1, BD en versión 11** (última subida el 2026-11-06). Antes de cada despliegue: respaldar la BD (PHP temporal con token) y los archivos que se reemplazan, y comprobar que producción coincide con el último commit (en el pasado hubo cambios hechos directo en el servidor). Tras subir, verificar login, versión de BD, conteos y `error_log`, y borrar los scripts temporales.
+- Estado de producción: **v1.18.0, BD en versión 12** (última subida el 2026-11-16). Antes de cada despliegue: respaldar la BD (PHP temporal con token) y los archivos que se reemplazan, y comprobar que producción coincide con el último commit (en el pasado hubo cambios hechos directo en el servidor). Tras subir, verificar login, versión de BD, conteos y `error_log`, y borrar los scripts temporales.
 - Host `199.188.201.4`, puerto `21098`, usuario `aqreqjec`, `remotePath` = `/home/aqreqjec/maval.solucioneseys.co`.
 - La cuenta **no tiene shell SSH** (solo SFTP) y el MySQL remoto **no acepta conexiones externas**.
 - Para exportar la BD de producción se usó un PHP temporal con token subido por SFTP, ejecutado por HTTPS y borrado de inmediato. Repetir el mismo método si hace falta una copia nueva.
@@ -133,3 +133,9 @@ bcrypt, CSRF en formularios, bloqueo tras 8 intentos fallidos (15 min), cierre d
 - Ideas pendientes: permisos por usuario (hoy son por rol), restringir el acceso por IP, reportes de cotizaciones por cliente.
 - `INSTALACION.md` tiene la guía de instalación en cPanel (el archivo tiene problemas de codificación al leerlo desde PowerShell; está en UTF-8).
 - La contraseña SFTP y la de la BD de producción fueron manejadas en esta sesión; considerar rotarlas.
+
+## Revisión de seguridad de producción (2026-11-16)
+- **Bien:** HTTPS forzado (301); cookie de sesión `Secure; HttpOnly; SameSite=Lax`; CSRF en todos los POST; consultas preparadas (sin interpolación de datos del usuario); salida escapada con `e()`; contraseñas con bcrypt y mínimo 8 caracteres; límite de 8 intentos fallidos por correo/IP en 15 minutos; `app/`, `sql/` y `uploads/` bloqueados (403); adjuntos solo vía `archivo.php` con permiso; extensiones de adjuntos restringidas con nombre aleatorio; `cron.php` exige token; `debug` apagado; un solo administrador y los roles no administradores sin permisos sensibles.
+- **Hallazgos en el servidor (pendientes de limpiar, requieren autorización):** `maval.zip` descargable públicamente (paquete inicial de oct-12, sin `config.php`), `instalar.php` y `instalar.php.old` accesibles (el instalador ya responde «ya instalada», pero el `.old` expone su código), carpeta `maval/` vacía, `INSTALACION.md` y `error_log` (bloqueados por 403 pero conviene borrarlos o sacarlos de la raíz web). Falta HSTS y CSP, y la cabecera `X-Powered-By` publica la versión de PHP.
+- **Endurecimiento hecho en local, sin desplegar:** cabeceras HSTS, CSP (jsdelivr y Google Fonts permitidos), Permissions-Policy y sin `X-Powered-By` (`app/bootstrap.php`); el login ya no revela si un correo existe o está inactivo ni por mensaje ni por tiempo (`login.php`); `archivo.php` permite ver las fotos de informes con el permiso `informes.ver` (antes solo el administrador).
+- Otros puntos menores: la clave que cifra la contraseña SMTP se deriva de las credenciales de la BD (AES-CBC sin HMAC); la contraseña SFTP/BD pasó por sesiones de trabajo (rotarlas); el 2026-11-14 hubo un error de conexión a MySQL en producción (transitorio, quedó en `error_log`).
