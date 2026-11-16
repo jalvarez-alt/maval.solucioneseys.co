@@ -8,7 +8,10 @@ $errors = [];
 $propias = empresas_list('propia');
 
 // Precarga desde una cotización aceptada
-$cotId = (int)get('cotizacion', 0);
+// Precarga desde un informe de servicio finalizado (si el informe tiene cotización, se toma también su valor)
+$inf = null;
+if (!$r && (int)get('informe', 0)) { require_once APP_DIR . '/informes.php'; $inf = inf_obtener((int)get('informe')); }
+$cotId = (int)get('cotizacion', 0) ?: (int)($inf['cotizacion_id'] ?? 0);
 $cot = (!$r && $cotId) ? one('SELECT * FROM cotizaciones WHERE id = ?', [$cotId]) : null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -47,6 +50,10 @@ if (!$r) {
             'valor' => $suma, 'referencia' => 'Cotización ' . $cot['consecutivo'], 'empresa_id' => $cot['empresa_id'] && isset($propias[(int)$cot['empresa_id']]) ? $cot['empresa_id'] : $r['empresa_id']]);
     }
 }
+if ($inf) {
+    $r = array_merge($r, ['concepto' => (INF_TIPOS[$inf['tipo']]['nombre'] ?? 'Servicio') . ' (informe ' . inf_codigo($inf) . ')', 'referencia' => inf_codigo($inf)]);
+    if (!$cot) $r = array_merge($r, ['cliente_nombre' => $inf['cliente_nombre'], 'cliente_nit' => $inf['cliente_nit'] ?? '']);
+}
 // Clientes conocidos (empresas cliente, facturas y pendientes anteriores)
 $clientes = [];
 foreach (all("SELECT nombre, nit FROM empresas WHERE tipo = 'cliente' AND activo = 1") as $c) $clientes[$c['nombre']] = $c['nit'] ?? '';
@@ -56,6 +63,7 @@ ksort($clientes);
 ?>
 <div class="panel" style="max-width:900px">
   <?php foreach ($errors as $er): ?><div class="alert alert-danger py-2"><?= e($er) ?></div><?php endforeach; ?>
+  <?php if ($inf): ?><div class="alert alert-info py-2 small"><i class="bi bi-clipboard-check me-1"></i>Precargado desde el informe <?= e(inf_codigo($inf)) ?>. Indique el valor a facturar.</div><?php endif; ?>
   <?php if ($cot): ?><div class="alert alert-info py-2 small"><i class="bi bi-file-earmark-text me-1"></i>Precargado desde la cotización No. <?= (int)$cot['consecutivo'] ?>. Ajuste el valor si va a facturar solo una parte.</div><?php endif; ?>
   <form method="post">
     <?= csrf_field() ?>

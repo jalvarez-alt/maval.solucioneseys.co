@@ -381,3 +381,46 @@ CREATE TABLE IF NOT EXISTS empresa_notificar (
   FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- v12: informes de servicio (instalación de cámaras, redes inalámbricas y software)
+CREATE TABLE IF NOT EXISTS informes (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  consecutivo INT UNSIGNED NOT NULL,
+  tipo VARCHAR(12) NOT NULL,
+  estado VARCHAR(12) NOT NULL DEFAULT 'Borrador',
+  empresa_id INT UNSIGNED NULL,
+  cliente_nombre VARCHAR(150) NOT NULL,
+  cliente_nit VARCHAR(30) NULL,
+  contacto VARCHAR(150) NULL,
+  cliente_email VARCHAR(150) NULL,
+  sede VARCHAR(200) NULL,
+  tecnico_id INT UNSIGNED NULL,
+  tecnico_nombre VARCHAR(120) NULL,
+  cotizacion_id INT UNSIGNED NULL,
+  referencia VARCHAR(80) NULL,
+  fecha_inicio DATE NOT NULL,
+  fecha_fin DATE NULL,
+  resumen TEXT NULL,
+  actividades TEXT NULL,
+  datos TEXT NULL,
+  recomendaciones TEXT NULL,
+  firma_nombre VARCHAR(120) NULL,
+  firma_cargo VARCHAR(100) NULL,
+  enviado DATETIME NULL,
+  enviado_a VARCHAR(500) NULL,
+  creado_por INT UNSIGNED NULL,
+  creado DATETIME NULL,
+  actualizado DATETIME NULL,
+  UNIQUE KEY uq_informe_consecutivo (consecutivo),
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE SET NULL,
+  FOREIGN KEY (tecnico_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS informe_filas (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  informe_id INT UNSIGNED NOT NULL,
+  seccion VARCHAR(12) NOT NULL,
+  orden INT NOT NULL DEFAULT 0,
+  c1 VARCHAR(250) NULL, c2 VARCHAR(250) NULL, c3 VARCHAR(250) NULL, c4 VARCHAR(250) NULL, c5 VARCHAR(250) NULL, c6 VARCHAR(250) NULL,
+  FOREIGN KEY (informe_id) REFERENCES informes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

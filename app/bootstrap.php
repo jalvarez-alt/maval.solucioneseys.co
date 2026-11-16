@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.17.1');
-define('DB_VERSION', 11);
+define('APP_VERSION', '1.18.0');
+define('DB_VERSION', 12);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -136,10 +136,27 @@ function migrar(): void
     if ($v < 9) migrar_v9($run, $eng);
     if ($v < 10) migrar_v10($run, $eng);
     if ($v < 11) migrar_v11($run, $eng);
+    if ($v < 12) migrar_v12($run, $eng);
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
 }
 
+/** v12: informes de servicio (instalación de cámaras, redes inalámbricas y software). */
+function migrar_v12(callable $run, string $eng): void
+{
+    $run('CREATE TABLE IF NOT EXISTS informes (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, consecutivo INT UNSIGNED NOT NULL, tipo VARCHAR(12) NOT NULL, estado VARCHAR(12) NOT NULL DEFAULT \'Borrador\',
+        empresa_id INT UNSIGNED NULL, cliente_nombre VARCHAR(150) NOT NULL, cliente_nit VARCHAR(30) NULL, contacto VARCHAR(150) NULL, cliente_email VARCHAR(150) NULL, sede VARCHAR(200) NULL,
+        tecnico_id INT UNSIGNED NULL, tecnico_nombre VARCHAR(120) NULL, cotizacion_id INT UNSIGNED NULL, referencia VARCHAR(80) NULL, fecha_inicio DATE NOT NULL, fecha_fin DATE NULL,
+        resumen TEXT NULL, actividades TEXT NULL, datos TEXT NULL, recomendaciones TEXT NULL, firma_nombre VARCHAR(120) NULL, firma_cargo VARCHAR(100) NULL,
+        enviado DATETIME NULL, enviado_a VARCHAR(500) NULL, creado_por INT UNSIGNED NULL, creado DATETIME NULL, actualizado DATETIME NULL, UNIQUE KEY uq_informe_consecutivo (consecutivo),
+        FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE SET NULL, FOREIGN KEY (tecnico_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+        FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE SET NULL)' . $eng);
+    $run('CREATE TABLE IF NOT EXISTS informe_filas (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, informe_id INT UNSIGNED NOT NULL, seccion VARCHAR(12) NOT NULL, orden INT NOT NULL DEFAULT 0,
+        c1 VARCHAR(250) NULL, c2 VARCHAR(250) NULL, c3 VARCHAR(250) NULL, c4 VARCHAR(250) NULL, c5 VARCHAR(250) NULL, c6 VARCHAR(250) NULL,
+        FOREIGN KEY (informe_id) REFERENCES informes(id) ON DELETE CASCADE)' . $eng);
+}
 /** v11: usuarios que reciben aviso por correo cuando se crea un ticket de una empresa. */
 function migrar_v11(callable $run, string $eng): void
 {
@@ -453,7 +470,7 @@ function badge(string $text, string $kind = ''): string
         'admin' => 'danger', 'usuario' => 'primary', 'empresa' => 'success',
         'Legal' => 'success', 'No legal' => 'danger', 'Libre' => 'secondary', 'Sin registrar' => 'secondary',
         'Bajo' => 'success', 'Medio' => 'warning', 'Alto' => 'danger',
-        'Facturado' => 'success', 'Descartado' => 'secondary',
+        'Facturado' => 'success', 'Descartado' => 'secondary', 'Finalizado' => 'success',
         'Borrador' => 'secondary', 'Enviada' => 'info', 'Aceptada' => 'success', 'Rechazada' => 'danger',
     ];
     $k = $kind ?: ($map[$text] ?? 'secondary');
@@ -540,6 +557,9 @@ const MODULOS = [
     'cotizaciones' => ['Cotizaciones', 'file-earmark-text', [
         'ver' => 'Consultar cotizaciones y descargar el PDF', 'crear' => 'Crear y duplicar cotizaciones', 'editar' => 'Editar cotizaciones', 'eliminar' => 'Eliminar cotizaciones',
         'aprobar' => 'Enviar por correo y cambiar el estado (aceptada, rechazada, anulada)', 'administrar' => 'Configurar la cuenta de correo, los datos de la empresa, el logo y el consecutivo']],
+    'informes' => ['Informes de servicio', 'clipboard-check', [
+        'ver' => 'Consultar informes y descargar el PDF', 'crear' => 'Crear informes', 'editar' => 'Editar informes en borrador', 'eliminar' => 'Eliminar informes',
+        'aprobar' => 'Finalizar, reabrir y enviar por correo']],
     'porfacturar' => ['Por facturar', 'receipt-cutoff', [
         'ver' => 'Consultar lo pendiente por facturar', 'crear' => 'Registrar pendientes', 'editar' => 'Editar pendientes', 'eliminar' => 'Eliminar pendientes',
         'aprobar' => 'Marcar como facturado, descartar o reabrir']],
