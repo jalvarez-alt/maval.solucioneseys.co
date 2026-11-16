@@ -1,6 +1,6 @@
 <?php
 /**
- * Informes de servicio: acta que se entrega al cliente al terminar una instalación (cámaras, red inalámbrica, software).
+ * Informes de servicio: acta que se entrega al cliente al terminar una instalación (cámaras, conectividad y cableado estructurado, software).
  * Cada tipo define sus tablas y pruebas típicas; el PDF usa la identidad visual de las cotizaciones.
  */
 require_once APP_DIR . '/cotizaciones.php';
@@ -22,15 +22,19 @@ const INF_TIPOS = [
         'pruebas' => ['Visión nocturna', 'Grabación continua', 'Detección de movimiento', 'Acceso remoto desde el celular', 'Fecha y hora sincronizadas'],
     ],
     'wifi' => [
-        'nombre' => 'Instalación de red inalámbrica (Wi-Fi)', 'corto' => 'Red inalámbrica', 'icono' => 'wifi',
-        'equipos' => 'Puntos de acceso instalados',
-        'cols' => ['Punto de acceso', 'Ubicación', 'Modelo / serial', 'Canal', 'Red (SSID)', 'Estado'], 'anchos' => [64, 100, 120, 44, 126, 28],
+        'nombre' => 'Conectividad y cableado estructurado', 'corto' => 'Conectividad', 'icono' => 'wifi',
+        'equipos' => 'Equipos y puntos instalados',
+        'cols' => ['Equipo / punto', 'Ubicación', 'Modelo / serial', 'Canal / cant.', 'Red (SSID) / puerto', 'Estado'], 'anchos' => [64, 100, 120, 44, 126, 28],
         'estados' => ['Operativo', 'Con observación', 'Pendiente'],
         'datos' => [
             'router' => ['Router / firewall: modelo e IP de gestión', 'text'], 'switch' => ['Switch / puertos PoE usados', 'text'],
+            'internet' => ['Enlace de internet (proveedor, tipo, velocidad contratada e IP)', 'text'],
+            'rack' => ['Rack / gabinete (tamaño, ubicación, patch panel, organización y rotulación del cableado)', 'area'],
+            'ups' => ['UPS (marca, capacidad en VA, equipos que respalda y autonomía)', 'area'],
+            'multitomas' => ['Multitomas / tomas eléctricas (cantidad, ubicación, polo a tierra)', 'area'],
             'redes' => ['Redes creadas (nombre, VLAN, seguridad y uso; sin contraseñas)', 'area'], 'cobertura' => ['Pruebas de cobertura (zona, señal en dBm y velocidad en Mbps)', 'area'],
         ],
-        'pruebas' => ['Cobertura en todas las zonas', 'Velocidad de internet medida', 'Cambio entre puntos de acceso (roaming)', 'Red de invitados aislada de la red interna', 'Acceso a internet desde varios equipos'],
+        'pruebas' => ['Cobertura Wi-Fi en todas las zonas', 'Velocidad de internet medida', 'Cambio entre puntos de acceso (roaming)', 'Red de invitados aislada de la red interna', 'Acceso a internet desde varios equipos', 'Certificación / prueba del cableado', 'Rack ordenado y cableado rotulado', 'UPS respalda los equipos al cortar la energía', 'Tomas eléctricas con polo a tierra'],
     ],
     'software' => [
         'nombre' => 'Instalación de software', 'corto' => 'Software', 'icono' => 'pc-display',

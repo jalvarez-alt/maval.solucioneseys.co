@@ -1,6 +1,6 @@
 # MAVAL — contexto del proyecto
 
-Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-11-16 (producción en v1.18.1, BD v12, igual al último commit; ver «Revisión de seguridad»).
+Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-11-16 (producción en v1.18.2, BD v12, igual al último commit; ver «Revisión de seguridad»).
 
 ## Qué es
 Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda (tickets) con avisos por correo, inventario de cómputo y otros equipos (incluye aires acondicionados), planeador de mantenimiento preventivo, roles y permisos, cotizaciones con PDF y envío por correo, gastos, presupuesto, cartera (facturas y abonos) y entradas de dinero. Producción: https://maval.solucioneseys.co (Namecheap, cPanel).
@@ -52,7 +52,7 @@ empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos
 - Se envían por correo con el PDF adjunto desde una **cuenta SMTP propia** (claves `cot_*` en `ajustes`, `correo_config('cot')`), independiente de la de la mesa de ayuda. Permisos: *aprobar* = enviar y cambiar estado; *administrar* = configuración.
 
 ## Informes de servicio (v1.18.0)
-- Módulo `informes` (menú *Comercial → Informes de servicio*; permisos ver, crear, editar, eliminar y *aprobar* = finalizar, reabrir y enviar por correo). Acta que se entrega al cliente al terminar una instalación; tres tipos definidos en `INF_TIPOS` (`app/informes.php`): **cámaras**, **red inalámbrica (Wi-Fi)** y **software**. Cada tipo trae sus columnas de la tabla de equipos, sus datos técnicos propios y pruebas sugeridas; para agregar un tipo basta añadir una entrada a `INF_TIPOS`.
+- Módulo `informes` (menú *Comercial → Informes de servicio*; permisos ver, crear, editar, eliminar y *aprobar* = finalizar, reabrir y enviar por correo). Acta que se entrega al cliente al terminar una instalación; tres tipos definidos en `INF_TIPOS` (`app/informes.php`): **cámaras**, **conectividad y cableado estructurado** (clave `wifi`: Wi-Fi, rack, UPS, multitomas e internet) y **software**. Cada tipo trae sus columnas de la tabla de equipos, sus datos técnicos propios y pruebas sugeridas; para agregar un tipo basta añadir una entrada a `INF_TIPOS`.
 - Tablas (BD v12): `informes` (consecutivo `IS-0001`, tipo, estado Borrador/Finalizado, cliente, sede, técnico, cotización opcional, fechas, resumen, actividades, `datos` en JSON, recomendaciones, quién recibe, envío) e `informe_filas` (secciones `equipos` con hasta 6 columnas `c1..c6`, `materiales` y `pruebas`). Las fotos usan `adjuntos` con entidad `informe`.
 - Páginas: `informes` (lista y filtros), `informe_form` (crear/editar; `?tipo=` y `?cotizacion=` para precargar), `informe` (vista, PDF con `?pdf=ver|bajar`, finalizar/reabrir, envío por correo con la cuenta de cotizaciones). El PDF (`inf_pdf()`) reutiliza banner, colores y pie de las cotizaciones e incluye las fotos JPG/PNG (se reducen si el servidor tiene GD). Un informe finalizado solo se edita reabriéndolo.
 - Integración: la cotización *Aceptada* tiene «Crear informe»; el informe finalizado tiene «Pasar a por facturar» (`por_facturar_form?informe=ID`, toma la cotización y su valor si la hay).
