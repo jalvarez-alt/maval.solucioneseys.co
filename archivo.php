@@ -17,6 +17,8 @@ if ($a['entidad'] === 'ticket') {
     $ok = can('gastos', 'ver');
 } elseif ($a['entidad'] === 'factura') {
     $ok = can('cartera', 'ver');
+} elseif ($a['entidad'] === 'informe') {
+    $ok = can('informes', 'ver');
 } else {
     $ok = is_admin();
 }

@@ -7,7 +7,7 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.18.0');
+define('APP_VERSION', '1.18.1');
 define('DB_VERSION', 12);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
@@ -39,7 +39,11 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
-
+header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()');
+header('Content-Security-Policy: default-src \'self\'; script-src \'self\' \'unsafe-inline\' https://cdn.jsdelivr.net; style-src \'self\' \'unsafe-inline\' https://cdn.jsdelivr.net https://fonts.googleapis.com; '
+    . 'font-src \'self\' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; img-src \'self\' data: blob:; connect-src \'self\'; object-src \'none\'; base-uri \'self\'; form-action \'self\'; frame-ancestors \'self\'');
+if ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['SERVER_PORT'] ?? '') == 443)) header('Strict-Transport-Security: max-age=31536000');   // el sitio solo se usa por HTTPS
+header_remove('X-Powered-By');
 // ---------- Base de datos ----------
 function db(): PDO
 {

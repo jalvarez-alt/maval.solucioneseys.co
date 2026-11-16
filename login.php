@@ -15,7 +15,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Demasiados intentos fallidos. Espere 15 minutos e intente de nuevo.';
     } else {
         $u = one('SELECT * FROM usuarios WHERE email = ?', [$email]);
-        if ($u && $u['activo'] && password_verify($pass, $u['password'])) {
+        $claveOk = password_verify($pass, $u['password'] ?? '$2y$10$Elw5sIAmIq3lr2H7cLzAlOs2Q0S0bVbWABWKGw..ZIv3slK8DpuI6');   // se verifica siempre: no revela por tiempo si el correo existe
+        if ($u && $u['activo'] && $claveOk) {
             session_regenerate_id(true);
             $_SESSION['uid'] = (int)$u['id'];
             $_SESSION['last'] = time();
@@ -27,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('index.php');
         }
         insert('login_intentos', ['email' => $email, 'ip' => client_ip(), 'fecha' => now()]);
-        $error = ($u && !$u['activo']) ? 'Su usuario está inactivo. Contacte al administrador.' : 'Correo o contraseña incorrectos.';
+        $error = ($u && !$u['activo'] && $claveOk) ? 'Su usuario está inactivo. Contacte al administrador.' : 'Correo o contraseña incorrectos.';
     }
 }
 $appName = $CONFIG['app_name'] ?? 'MAVAL';
