@@ -43,7 +43,7 @@ function notificar_ticket(int $ticketId, string $evento, array $ctx = []): void
 
         $cod = $t['codigo'];
         $ficha = correo_ficha([
-            'Ticket' => '<strong>' . e($cod) . '</strong>', 'Asunto' => e($t['asunto']), 'Estado' => e($t['estado']), 'Prioridad' => e($t['prioridad']), 'Categoría' => e($t['categoria']),
+            'Ticket' => '<strong>' . e($cod) . '</strong>', 'Asunto' => e($t['asunto']), 'Estado' => e($t['estado']), 'Prioridad' => e($t['prioridad']), 'Categoría' => e($t['categoria'] . (!empty($t['subcategoria']) ? ' · ' . $t['subcategoria'] : '')),
             'Solicitante' => e($t['sol_nombre'] ?? ''), 'Empresa' => e($t['empresa'] ?? ''), 'Asignado a' => e($t['asig_nombre'] ?? 'Sin asignar'),
             'Equipo' => $t['eq_codigo'] ? e($t['eq_codigo'] . ' · ' . $t['eq_tipo'] . ' ' . trim(($t['eq_marca'] ?? '') . ' ' . ($t['eq_modelo'] ?? ''))) : null,
         ]);

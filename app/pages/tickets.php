@@ -70,7 +70,7 @@ $qs = array_filter(['p' => 'tickets', 'estado' => $estado, 'prioridad' => get('p
       <tr>
         <td class="nowrap"><a class="row-link" href="<?= url('ticket', ['id' => $r['id']]) ?>"><?= e($r['codigo']) ?></a></td>
         <td><a class="row-link fw-normal" href="<?= url('ticket', ['id' => $r['id']]) ?>"><?= e($r['asunto']) ?></a></td>
-        <td class="muted"><?= e($r['categoria']) ?></td>
+        <td class="muted"><?= e($r['categoria']) ?><?php if (!empty($r['subcategoria'])): ?><br><small><?= e($r['subcategoria']) ?></small><?php endif; ?></td>
         <td><?= badge($r['prioridad']) ?></td>
         <td><?= badge($r['estado']) ?></td>
         <?php if (alcance() !== 'propios'): ?><td><?= e($r['solicitante'] ?? '—') ?></td><?php endif; ?>

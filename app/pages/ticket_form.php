@@ -24,12 +24,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'asunto' => (string)post('asunto', ''),
         'descripcion' => (string)post('descripcion', ''),
         'categoria' => (string)post('categoria', ''),
+        'subcategoria' => (string)post('subcategoria', ''),
         'prioridad' => (string)post('prioridad', 'Media'),
         'equipo_id' => post('equipo_id') ? (int)post('equipo_id') : null,
     ];
     if ($d['asunto'] === '') $errors[] = 'Escriba un asunto.';
     if ($d['descripcion'] === '') $errors[] = 'Describa el problema o la solicitud.';
     if (!in_array($d['categoria'], TICKET_CATEGORIAS, true)) $errors[] = 'Seleccione una categoría.';
+    if ($d['categoria'] === TICKET_CAT_LOCATIVO) { if (!in_array($d['subcategoria'], TICKET_SUBCATEGORIAS_LOCATIVO, true)) $errors[] = 'Seleccione el tipo de mantenimiento o arreglo locativo.'; }
+    else $d['subcategoria'] = null;
     if (!in_array($d['prioridad'], TICKET_PRIORIDADES, true)) $d['prioridad'] = 'Media';
     if ($d['equipo_id'] && !in_array($d['equipo_id'], $equipoIds, true)) $errors[] = 'El equipo seleccionado no es válido.';
 
@@ -71,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $r = array_merge($r ?? [], $d);
 }
-$r = $r ?? ['asunto' => '', 'descripcion' => '', 'categoria' => '', 'prioridad' => 'Media', 'equipo_id' => (int)get('equipo', 0) ?: null, 'empresa_id' => null, 'solicitante_id' => null, 'asignado_id' => null];
+$r = $r ?? ['asunto' => '', 'descripcion' => '', 'categoria' => '', 'subcategoria' => '', 'prioridad' => 'Media', 'equipo_id' => (int)get('equipo', 0) ?: null, 'empresa_id' => null, 'solicitante_id' => null, 'asignado_id' => null];
 if (!$r['categoria'] && $r['equipo_id']) {
     $tipoEq = val('SELECT tipo FROM equipos WHERE id = ?', [$r['equipo_id']]);
     $r['categoria'] = match ($tipoEq) {
@@ -90,7 +93,8 @@ if (!$r['categoria'] && $r['equipo_id']) {
     <?= csrf_field() ?>
     <div class="form-grid">
       <div class="full"><label class="form-label req">Asunto</label><input class="form-control" name="asunto" maxlength="200" value="<?= e($r['asunto']) ?>" placeholder="Ej.: La impresora de contabilidad no imprime" required></div>
-      <div><label class="form-label req">Categoría</label><select class="form-select" name="categoria" required><option value="">Seleccione…</option><?= options(TICKET_CATEGORIAS, $r['categoria'], false) ?></select></div>
+      <div><label class="form-label req">Categoría</label><select class="form-select" name="categoria" id="tk-cat" required><option value="">Seleccione…</option><?= options(TICKET_CATEGORIAS, $r['categoria'], false) ?></select></div>
+      <div class="full" id="tk-sub-box" style="display:none"><label class="form-label req">Tipo de mantenimiento o arreglo</label><select class="form-select" name="subcategoria" id="tk-sub"><option value="">Seleccione…</option><?= options(TICKET_SUBCATEGORIAS_LOCATIVO, $r['subcategoria'] ?? '', false) ?></select></div>
       <div><label class="form-label">Prioridad</label><select class="form-select" name="prioridad"><?= options(TICKET_PRIORIDADES, $r['prioridad'], false) ?></select></div>
       <div class="full"><label class="form-label">Equipo relacionado</label>
         <select class="form-select" name="equipo_id"><option value="">— Ninguno / no aplica —</option>
@@ -115,3 +119,14 @@ if (!$r['categoria'] && $r['equipo_id']) {
     </div>
   </form>
 </div>
+<script>
+(function () {
+  var cat = document.getElementById('tk-cat'), box = document.getElementById('tk-sub-box'), sub = document.getElementById('tk-sub');
+  if (!cat || !box || !sub) return;
+  function mostrar() {
+    var on = cat.value === <?= json_encode(TICKET_CAT_LOCATIVO, JSON_UNESCAPED_UNICODE) ?>;
+    box.style.display = on ? '' : 'none'; sub.required = on; if (!on) sub.value = '';
+  }
+  cat.addEventListener('change', mostrar); mostrar();
+})();
+</script>

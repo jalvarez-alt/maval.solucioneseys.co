@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   asunto VARCHAR(200) NOT NULL,
   descripcion TEXT NOT NULL,
   categoria VARCHAR(40) NOT NULL,
+  subcategoria VARCHAR(60) NULL,
   prioridad VARCHAR(10) NOT NULL DEFAULT 'Media',
   estado VARCHAR(20) NOT NULL DEFAULT 'Abierto',
   solicitante_id INT UNSIGNED NULL,

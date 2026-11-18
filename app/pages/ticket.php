@@ -165,7 +165,7 @@ function duracion(string $desde, ?string $hasta): string
       <div class="panel-h"><h3>Detalles</h3></div>
       <dl>
         <dt>Código</dt><dd><?= e($t['codigo']) ?></dd>
-        <dt>Categoría</dt><dd><?= e($t['categoria']) ?></dd>
+        <dt>Categoría</dt><dd><?= e($t['categoria']) ?><?php if (!empty($t['subcategoria'])): ?><br><small class="muted"><?= e($t['subcategoria']) ?></small><?php endif; ?></dd>
         <dt>Solicitante</dt><dd><?= e($t['solicitante'] ?? '—') ?><?php if ($staff && $t['solicitante_email']): ?><br><small class="muted"><?= e($t['solicitante_email']) ?><?= $t['solicitante_tel'] ? ' · ' . e($t['solicitante_tel']) : '' ?></small><?php endif; ?></dd>
         <dt>Empresa</dt><dd><?= e($t['empresa'] ?? '—') ?></dd>
         <dt>Asignado a</dt><dd><?= e($t['asignado'] ?? 'Sin asignar') ?></dd>

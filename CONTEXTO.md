@@ -1,6 +1,6 @@
 # MAVAL — contexto del proyecto
 
-Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-11-16 (producción en v1.18.2, BD v12, igual al último commit; ver «Revisión de seguridad»).
+Documento para retomar el trabajo en un chat nuevo. Última actualización: 2026-11-16 (producción en v1.19.0, BD v13, igual al último commit; ver «Revisión de seguridad»).
 
 ## Qué es
 Aplicación web **PHP 8.1+ / MySQL (PDO)**, sin Composer ni Node. Mesa de ayuda (tickets) con avisos por correo, inventario de cómputo y otros equipos (incluye aires acondicionados), planeador de mantenimiento preventivo, roles y permisos, cotizaciones con PDF y envío por correo, gastos, presupuesto, cartera (facturas y abonos) y entradas de dinero. Producción: https://maval.solucioneseys.co (Namecheap, cPanel).
@@ -109,6 +109,7 @@ empresas, usuarios, login_intentos, equipos, equipo_software, equipo_movimientos
 ## Correo y notificaciones
 - Configuración en *Correo y notificaciones* (SMTP o `mail()`); la contraseña se guarda cifrada con una clave derivada de la config de la BD (si cambia la clave de la BD hay que reescribirla).
 - Tickets: aviso al solicitante al crear, en cada cambio de estado y en cada respuesta pública; aviso al equipo de soporte. Las notas internas no se envían.
+- Tickets: categoría «Mantenimiento y arreglos locativos» (`TICKET_CAT_LOCATIVO`) con subcategoría obligatoria (Mampostería, Metalúrgico, Mantenimiento de maquinaria, Mantenimiento de zonas comunes; `TICKET_SUBCATEGORIAS_LOCATIVO`), columna `tickets.subcategoria` (BD v13). Se muestra en el detalle, la lista y el correo.
 - Mantenimiento: aviso al programar, recordatorio N días antes y recordatorios cada N días mientras esté vencido. Una vez al día se dispara con la primera visita; para puntualidad configurar en cPanel un cron diario: `php /home/USUARIO/maval.solucioneseys.co/cron.php` (o la URL con token que muestra la pantalla de configuración).
 
 ## Pruebas útiles (local)

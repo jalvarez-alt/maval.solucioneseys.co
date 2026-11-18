@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.18.2');
-define('DB_VERSION', 12);
+define('APP_VERSION', '1.19.0');
+define('DB_VERSION', 13);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -141,6 +141,7 @@ function migrar(): void
     if ($v < 10) migrar_v10($run, $eng);
     if ($v < 11) migrar_v11($run, $eng);
     if ($v < 12) migrar_v12($run, $eng);
+    if ($v < 13) $run('ALTER TABLE tickets ADD COLUMN subcategoria VARCHAR(60) NULL', true); // v13: subcategoría de «Mantenimiento y arreglos locativos»
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
 }
@@ -517,7 +518,9 @@ function factura_estado(array $f): string
 }
 
 // ---------- Catálogos ----------
-const TICKET_CATEGORIAS = ['Hardware', 'Software', 'Red e internet', 'Impresión', 'Correo', 'Accesos y contraseñas', 'Telefonía / celular', 'Cámaras y seguridad', 'Climatización', 'Otro'];
+const TICKET_CATEGORIAS = ['Hardware', 'Software', 'Red e internet', 'Impresión', 'Correo', 'Accesos y contraseñas', 'Telefonía / celular', 'Cámaras y seguridad', 'Climatización', 'Mantenimiento y arreglos locativos', 'Otro'];
+const TICKET_CAT_LOCATIVO = 'Mantenimiento y arreglos locativos';
+const TICKET_SUBCATEGORIAS_LOCATIVO = ['Mampostería', 'Metalúrgico', 'Mantenimiento de maquinaria', 'Mantenimiento de zonas comunes'];
 const TICKET_PRIORIDADES = ['Baja', 'Media', 'Alta', 'Crítica'];
 const TICKET_ESTADOS = ['Abierto', 'En proceso', 'En espera', 'Resuelto', 'Cerrado'];
 const TICKET_ACTIVOS = ['Abierto', 'En proceso', 'En espera'];
