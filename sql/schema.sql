@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS empresas (
   tk_seguridad VARCHAR(5) NULL,
   tk_usuario VARCHAR(150) NULL,
   tk_clave VARCHAR(500) NULL,
+  notificar_correos VARCHAR(1000) NULL,
   activo TINYINT NOT NULL DEFAULT 1,
   creado DATETIME NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

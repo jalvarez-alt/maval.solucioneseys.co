@@ -5,9 +5,6 @@ $r = $id ? one('SELECT * FROM empresas WHERE id = ?', [$id]) : null;
 if ($id && !$r) not_found();
 $title = $r ? 'Editar empresa' : 'Nueva empresa';
 $errors = [];
-$usuarios = [];
-foreach (all('SELECT u.id, u.nombre, u.email, e.nombre AS empresa FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.activo = 1 ORDER BY u.nombre') as $us) $usuarios[(int)$us['id']] = $us;
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $d = [
         'nombre' => (string)post('nombre', ''),
@@ -26,6 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'tk_seguridad' => in_array(post('tk_seguridad'), ['ssl', 'tls', 'none'], true) ? post('tk_seguridad') : 'ssl',
         'tk_usuario' => trim((string)post('tk_usuario', '')) ?: null,
     ];
+    $lista = array_values(array_unique(array_filter(array_map('mb_strtolower', preg_split('/[\s,;]+/', trim((string)post('notificar_correos', '')))))));
+    foreach ($lista as $c) if (!filter_var($c, FILTER_VALIDATE_EMAIL)) $errors[] = 'El correo a notificar «' . $c . '» no es válido.';
+    $d['notificar_correos'] = $lista ? mb_substr(implode(', ', $lista), 0, 1000) : null;
     if ((string)post('tk_clave', '') !== '') $d['tk_clave'] = secreto_cifrar((string)post('tk_clave', ''));   // vacío = conservar la actual
     if ($d['tk_desde']) {
         if (!filter_var($d['tk_desde'], FILTER_VALIDATE_EMAIL)) $errors[] = 'El correo de envío de tickets no es válido.';
@@ -37,19 +37,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($r && $r['tipo'] === 'propia' && $d['tipo'] !== 'propia' && val('SELECT COUNT(*) FROM facturas WHERE empresa_id = ?', [$id]) > 0) {
         $errors[] = 'Esta empresa tiene facturas en cartera; no puede cambiarse a tipo Cliente.';
     }
-    $notif = array_values(array_unique(array_map('intval', (array)($_POST['notificar'] ?? []))));
     if (!$errors) {
         if ($r) { update('empresas', $d, $id); flash('Empresa actualizada.'); }
         else { $d['creado'] = now(); $id = (int)insert('empresas', $d); flash('Empresa creada.'); }
-        q('DELETE FROM empresa_notificar WHERE empresa_id = ?', [$id]);
-        foreach ($notif as $uid) if (isset($usuarios[$uid])) q('INSERT INTO empresa_notificar (empresa_id, usuario_id) VALUES (?, ?)', [$id, $uid]);
         redirect(url('empresas'));
     }
     $r = array_merge($r ?? [], $d);
-} else {
-    $notif = $id ? array_map('intval', array_column(all('SELECT usuario_id FROM empresa_notificar WHERE empresa_id = ?', [$id]), 'usuario_id')) : [];
 }
-$r = $r ?? ['nombre' => '', 'nit' => '', 'tipo' => 'cliente', 'contacto' => '', 'telefono' => '', 'email' => '', 'direccion' => '', 'tk_desde' => '', 'tk_desde_nombre' => '', 'tk_responder' => '', 'tk_host' => '', 'tk_puerto' => 465, 'tk_seguridad' => 'ssl', 'tk_usuario' => '', 'tk_clave' => '', 'activo' => 1];
+$r = $r ?? ['nombre' => '', 'nit' => '', 'tipo' => 'cliente', 'contacto' => '', 'telefono' => '', 'email' => '', 'direccion' => '', 'tk_desde' => '', 'tk_desde_nombre' => '', 'tk_responder' => '', 'tk_host' => '', 'tk_puerto' => 465, 'tk_seguridad' => 'ssl', 'tk_usuario' => '', 'tk_clave' => '', 'notificar_correos' => '', 'activo' => 1];
 ?>
 <div class="panel" style="max-width:820px">
   <?php foreach ($errors as $er): ?><div class="alert alert-danger py-2"><?= e($er) ?></div><?php endforeach; ?>
@@ -80,16 +75,10 @@ $r = $r ?? ['nombre' => '', 'nit' => '', 'tipo' => 'cliente', 'contacto' => '', 
       </div>
     </div>
     <div class="mt-4">
-      <label class="form-label mb-0">Usuarios a notificar de los tickets de esta empresa</label>
-      <div class="form-text mb-2">Reciben un correo cuando se crea un ticket de esta empresa, cuando alguien responde y cuando cambia de estado (además del solicitante y el equipo de soporte; las notas internas no se envían).</div>
-      <?php if (!$usuarios): ?><div class="text-muted small">No hay usuarios activos.</div><?php else: ?>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 16px;max-height:260px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
-        <?php foreach ($usuarios as $uid => $us): ?>
-        <div class="form-check"><input class="form-check-input" type="checkbox" name="notificar[]" value="<?= $uid ?>" id="nu<?= $uid ?>" <?= in_array($uid, $notif, true) ? 'checked' : '' ?>>
-          <label class="form-check-label" for="nu<?= $uid ?>"><?= e($us['nombre']) ?><small class="text-muted d-block"><?= e($us['email']) ?><?= $us['empresa'] ? ' · ' . e($us['empresa']) : '' ?></small></label></div>
-        <?php endforeach; ?>
-      </div>
-      <?php endif; ?>
+      <label class="form-label mb-0" for="notif-correos">Correos a notificar de los tickets de esta empresa</label>
+      <div class="form-text mb-2">Reciben una copia cuando se crea un ticket de esta empresa, cuando alguien responde y cuando cambia de estado (además del solicitante y el equipo de soporte; las notas internas no se envían). Escriba una dirección por línea o separadas por coma.</div>
+      <textarea class="form-control" id="notif-correos" name="notificar_correos" rows="3" maxlength="1000" placeholder="gerencia@empresa.com&#10;sistemas@empresa.com"><?= e(str_replace(', ', "
+", (string)($r['notificar_correos'] ?? ''))) ?></textarea>
     </div>
     <div class="form-actions">
       <button class="btn btn-primary">Guardar</button>

@@ -104,6 +104,8 @@ function notificar_ticket(int $ticketId, string $evento, array $ctx = []): void
                 if ((int)$n['id'] === $actor || !filter_var($n['email'], FILTER_VALIDATE_EMAIL) || in_array(mb_strtolower($n['email']), $avisados, true)) continue;
                 $dest[] = $n['email'];
             }
+            $libres = array_filter(array_unique(array_map('mb_strtolower', preg_split('/[\s,;]+/', (string)val('SELECT notificar_correos FROM empresas WHERE id = ?', [(int)$t['empresa_id']])))), fn($c) => filter_var($c, FILTER_VALIDATE_EMAIL));
+            foreach ($libres as $c) if (!in_array($c, $avisados, true) && !in_array($c, array_map('mb_strtolower', $dest), true)) $dest[] = $c;
             if ($dest) {
                 $de = ' del ticket <strong>' . e($cod) . '</strong>' . ($t['sol_nombre'] ? ' de <strong>' . e($t['sol_nombre']) . '</strong>' : '') . ($t['empresa'] ? ' (' . e($t['empresa']) . ')' : '');
                 if ($evento === 'creado') $envia($dest, "[$cod] Nuevo ticket de " . ($t['empresa'] ?: 'su empresa') . ': ' . $t['asunto'], 'Nuevo ticket de su empresa', 'Se registró un nuevo ticket' . ($t['sol_nombre'] ? ' de <strong>' . e($t['sol_nombre']) . '</strong>' : '') . ($t['empresa'] ? ' de <strong>' . e($t['empresa']) . '</strong>' : '') . '.');
