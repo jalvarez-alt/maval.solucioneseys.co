@@ -59,6 +59,16 @@ function correo_config(string $cuenta = ''): array
         'sin_verificar' => (bool)ajuste($p . 'smtp_sin_verificar', 0),
     ];
 }
+/** Cuenta de correo propia de una empresa para sus tickets (null si no la tiene configurada). */
+function correo_config_empresa(?int $empresaId): ?array
+{
+    if (!$empresaId) return null;
+    $e = one('SELECT tk_desde, tk_desde_nombre, tk_responder, tk_host, tk_puerto, tk_seguridad, tk_usuario, tk_clave FROM empresas WHERE id = ?', [$empresaId]);
+    if (!$e || !filter_var((string)$e['tk_desde'], FILTER_VALIDATE_EMAIL) || trim((string)$e['tk_host']) === '') return null;
+    return ['modo' => 'smtp', 'host' => trim((string)$e['tk_host']), 'puerto' => (int)($e['tk_puerto'] ?: 465), 'seguridad' => $e['tk_seguridad'] ?: 'ssl',
+        'usuario' => (string)$e['tk_usuario'], 'clave' => secreto_descifrar((string)$e['tk_clave']), 'desde' => (string)$e['tk_desde'], 'desde_nombre' => (string)$e['tk_desde_nombre'],
+        'responder' => (string)$e['tk_responder'], 'sin_verificar' => false];
+}
 /** ¿Está habilitado el envío y hay una cuenta configurada? */
 function correo_activo(string $cuenta = ''): bool
 {
@@ -100,8 +110,8 @@ function enviar_correo($para, string $asunto, string $html, array $o = []): arra
     $motivo = $o['motivo'] ?? null;
     if (!$dest) return ['ok' => false, 'error' => 'Sin destinatarios válidos.', 'enviados' => 0];
     $cuenta = (string)($o['cuenta'] ?? '');
-    $cfg = correo_config($cuenta);
-    if (empty($o['forzar']) && !correo_activo($cuenta)) return ['ok' => false, 'error' => 'El envío de correo está desactivado o sin configurar.', 'enviados' => 0];
+    $cfg = $o['config'] ?? correo_config($cuenta);   // config: cuenta propia de una empresa
+    if (empty($o['forzar']) && empty($o['config']) && !correo_activo($cuenta)) return ['ok' => false, 'error' => 'El envío de correo está desactivado o sin configurar.', 'enviados' => 0];
     if (!filter_var($cfg['desde'], FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Falta el correo remitente.', 'enviados' => 0];
 
     $texto = preg_replace('/<\/t[dh]>/i', ' · ', $html);

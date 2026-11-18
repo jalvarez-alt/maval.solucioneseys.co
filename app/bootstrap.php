@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.19.0');
-define('DB_VERSION', 13);
+define('APP_VERSION', '1.20.0');
+define('DB_VERSION', 14);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -142,6 +142,7 @@ function migrar(): void
     if ($v < 11) migrar_v11($run, $eng);
     if ($v < 12) migrar_v12($run, $eng);
     if ($v < 13) $run('ALTER TABLE tickets ADD COLUMN subcategoria VARCHAR(60) NULL', true); // v13: subcategoría de «Mantenimiento y arreglos locativos»
+    if ($v < 14) foreach (['tk_desde VARCHAR(150) NULL', 'tk_desde_nombre VARCHAR(120) NULL', 'tk_responder VARCHAR(150) NULL', 'tk_host VARCHAR(150) NULL', 'tk_puerto INT NULL', 'tk_seguridad VARCHAR(5) NULL', 'tk_usuario VARCHAR(150) NULL', 'tk_clave VARCHAR(500) NULL'] as $col) $run('ALTER TABLE empresas ADD COLUMN ' . $col, true); // v14: cuenta de correo propia de la empresa para sus tickets
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
 }

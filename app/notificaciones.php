@@ -21,7 +21,7 @@ function usuarios_soporte(): array
  */
 function notificar_ticket(int $ticketId, string $evento, array $ctx = []): void
 {
-    if (!correo_activo() || !ajuste('notif_tickets', 1)) return;
+    if (!ajuste('notif_tickets', 1)) return;
     $actor = (int)(user()['id'] ?? 0);
     $actorNombre = (string)(user()['nombre'] ?? '');
     despues(function () use ($ticketId, $evento, $ctx, $actor, $actorNombre) {
@@ -30,6 +30,8 @@ function notificar_ticket(int $ticketId, string $evento, array $ctx = []): void
             FROM tickets t LEFT JOIN usuarios s ON s.id = t.solicitante_id LEFT JOIN usuarios a ON a.id = t.asignado_id
             LEFT JOIN empresas e ON e.id = t.empresa_id LEFT JOIN equipos eq ON eq.id = t.equipo_id WHERE t.id = ?', [$ticketId]);
         if (!$t) return;
+        $cfgEmp = correo_config_empresa($t['empresa_id'] ? (int)$t['empresa_id'] : null);   // cuenta propia de la empresa, si la tiene
+        if (!$cfgEmp && !correo_activo()) return;
         $porEquipo = (bool)ajuste('notif_tickets_equipo', 1);
         // El solicitante recibe el aviso salvo que él mismo haya hecho el cambio (la creación sí se le confirma)
         $solicitante = $t['sol_email'] && ((int)$t['solicitante_id'] !== $actor || $evento === 'creado') ? $t['sol_email'] : null;
@@ -52,9 +54,14 @@ function notificar_ticket(int $ticketId, string $evento, array $ctx = []): void
             . '<div style="font-size:12px;color:#64748b;margin-bottom:4px">' . e($actorNombre ?: 'Soporte') . ' escribió:</div>' . e($msg) . '</div>' : '';
         $link = app_link('ticket', ['id' => $ticketId]);
         $avisados = [];   // correos que ya recibieron aviso de este evento
-        $envia = function ($para, string $asunto, string $titulo, string $intro) use (&$avisados, $citado, $ficha, $link) {
+        $envia = function ($para, string $asunto, string $titulo, string $intro) use (&$avisados, $citado, $ficha, $link, $cfgEmp) {
             foreach ((array)$para as $c) $avisados[] = mb_strtolower((string)$c);
-            return enviar_correo($para, $asunto, correo_plantilla($titulo, '<p style="margin:0 0 10px">' . $intro . '</p>' . $citado . $ficha, $link, 'Ver el ticket'), ['motivo' => 'ticket']);
+            $html = correo_plantilla($titulo, '<p style="margin:0 0 10px">' . $intro . '</p>' . $citado . $ficha, $link, 'Ver el ticket');
+            if ($cfgEmp) {
+                $res = enviar_correo($para, $asunto, $html, ['motivo' => 'ticket', 'config' => $cfgEmp]);
+                if ($res['ok'] || !correo_activo()) return $res;   // si falla la cuenta de la empresa se reintenta con la cuenta general
+            }
+            return enviar_correo($para, $asunto, $html, ['motivo' => 'ticket']);
         };
 
         if ($evento === 'creado') {

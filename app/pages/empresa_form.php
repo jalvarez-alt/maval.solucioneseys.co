@@ -18,7 +18,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'email' => post('email'),
         'direccion' => post('direccion'),
         'activo' => post('activo') ? 1 : 0,
+        'tk_desde' => mb_strtolower(trim((string)post('tk_desde', ''))) ?: null,
+        'tk_desde_nombre' => trim((string)post('tk_desde_nombre', '')) ?: null,
+        'tk_responder' => mb_strtolower(trim((string)post('tk_responder', ''))) ?: null,
+        'tk_host' => trim((string)post('tk_host', '')) ?: null,
+        'tk_puerto' => (int)post('tk_puerto', 465) ?: 465,
+        'tk_seguridad' => in_array(post('tk_seguridad'), ['ssl', 'tls', 'none'], true) ? post('tk_seguridad') : 'ssl',
+        'tk_usuario' => trim((string)post('tk_usuario', '')) ?: null,
     ];
+    if ((string)post('tk_clave', '') !== '') $d['tk_clave'] = secreto_cifrar((string)post('tk_clave', ''));   // vacío = conservar la actual
+    if ($d['tk_desde']) {
+        if (!filter_var($d['tk_desde'], FILTER_VALIDATE_EMAIL)) $errors[] = 'El correo de envío de tickets no es válido.';
+        if (!$d['tk_host']) $errors[] = 'Escriba el servidor SMTP de la cuenta de tickets.';
+        if ($d['tk_responder'] && !filter_var($d['tk_responder'], FILTER_VALIDATE_EMAIL)) $errors[] = 'El correo «responder a» no es válido.';
+    }
     if ($d['nombre'] === '') $errors[] = 'El nombre es obligatorio.';
     if ($d['email'] && !filter_var($d['email'], FILTER_VALIDATE_EMAIL)) $errors[] = 'El correo no es válido.';
     if ($r && $r['tipo'] === 'propia' && $d['tipo'] !== 'propia' && val('SELECT COUNT(*) FROM facturas WHERE empresa_id = ?', [$id]) > 0) {
@@ -36,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 } else {
     $notif = $id ? array_map('intval', array_column(all('SELECT usuario_id FROM empresa_notificar WHERE empresa_id = ?', [$id]), 'usuario_id')) : [];
 }
-$r = $r ?? ['nombre' => '', 'nit' => '', 'tipo' => 'cliente', 'contacto' => '', 'telefono' => '', 'email' => '', 'direccion' => '', 'activo' => 1];
+$r = $r ?? ['nombre' => '', 'nit' => '', 'tipo' => 'cliente', 'contacto' => '', 'telefono' => '', 'email' => '', 'direccion' => '', 'tk_desde' => '', 'tk_desde_nombre' => '', 'tk_responder' => '', 'tk_host' => '', 'tk_puerto' => 465, 'tk_seguridad' => 'ssl', 'tk_usuario' => '', 'tk_clave' => '', 'activo' => 1];
 ?>
 <div class="panel" style="max-width:820px">
   <?php foreach ($errors as $er): ?><div class="alert alert-danger py-2"><?= e($er) ?></div><?php endforeach; ?>
@@ -51,6 +64,20 @@ $r = $r ?? ['nombre' => '', 'nit' => '', 'tipo' => 'cliente', 'contacto' => '', 
       <div><label class="form-label">Correo</label><input class="form-control" type="email" name="email" value="<?= e($r['email']) ?>"></div>
       <div><label class="form-label">Dirección</label><input class="form-control" name="direccion" value="<?= e($r['direccion']) ?>"></div>
       <div class="d-flex align-items-end"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="activo" value="1" id="act" <?= $r['activo'] ? 'checked' : '' ?>><label class="form-check-label" for="act">Activa</label></div></div>
+    </div>
+    <div class="mt-4">
+      <label class="form-label mb-0">Cuenta de correo para los tickets de esta empresa</label>
+      <div class="form-text mb-2">Los correos de los tickets de esta empresa (creación, respuestas y cambios de estado) salen desde esta cuenta. Déjela vacía para usar la cuenta general de la mesa de ayuda. Si el envío con esta cuenta falla, se reintenta con la cuenta general.
+        <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="tk-m365"><i class="bi bi-microsoft"></i> Usar Microsoft 365</button></div>
+      <div class="form-grid">
+        <div><label class="form-label">Correo remitente</label><input class="form-control" type="email" name="tk_desde" value="<?= e($r['tk_desde'] ?? '') ?>" placeholder="soporte@empresa.com"></div>
+        <div><label class="form-label">Nombre visible</label><input class="form-control" name="tk_desde_nombre" maxlength="120" value="<?= e($r['tk_desde_nombre'] ?? '') ?>" placeholder="Soporte Empresa"></div>
+        <div><label class="form-label">Servidor SMTP</label><input class="form-control" name="tk_host" value="<?= e($r['tk_host'] ?? '') ?>" placeholder="mail.empresa.com" autocomplete="off"></div>
+        <div><label class="form-label">Puerto y seguridad</label><div class="input-group"><input class="form-control" type="number" name="tk_puerto" value="<?= (int)($r['tk_puerto'] ?: 465) ?>"><select class="form-select" name="tk_seguridad"><?= options(['ssl' => 'SSL', 'tls' => 'STARTTLS', 'none' => 'Ninguna'], $r['tk_seguridad'] ?: 'ssl') ?></select></div></div>
+        <div><label class="form-label">Usuario SMTP</label><input class="form-control" name="tk_usuario" value="<?= e($r['tk_usuario'] ?? '') ?>" autocomplete="off"></div>
+        <div><label class="form-label">Contraseña</label><input class="form-control" type="password" name="tk_clave" autocomplete="new-password" placeholder="<?= !empty($r['tk_clave']) ? '•••••••• (dejar vacío para conservar)' : '' ?>"></div>
+        <div class="full"><label class="form-label">Responder a (opcional)</label><input class="form-control" type="email" name="tk_responder" value="<?= e($r['tk_responder'] ?? '') ?>"></div>
+      </div>
     </div>
     <div class="mt-4">
       <label class="form-label mb-0">Usuarios a notificar de los tickets de esta empresa</label>
@@ -70,3 +97,13 @@ $r = $r ?? ['nombre' => '', 'nit' => '', 'tipo' => 'cliente', 'contacto' => '', 
     </div>
   </form>
 </div>
+<script>
+(function () {
+  var b = document.getElementById('tk-m365'); if (!b) return;
+  b.addEventListener('click', function () {
+    var q = function (n) { return document.querySelector('[name="' + n + '"]'); };
+    q('tk_host').value = 'smtp.office365.com'; q('tk_puerto').value = 587; q('tk_seguridad').value = 'tls';
+    if (!q('tk_usuario').value) q('tk_usuario').value = q('tk_desde').value;
+  });
+})();
+</script>
