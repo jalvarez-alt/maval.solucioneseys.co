@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.22.0');
-define('DB_VERSION', 17);
+define('APP_VERSION', '1.23.0');
+define('DB_VERSION', 18);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -146,8 +146,66 @@ function migrar(): void
     if ($v < 15) $run('ALTER TABLE empresas ADD COLUMN notificar_correos VARCHAR(1000) NULL', true); // v15: correos libres a notificar de los tickets de la empresa
     if ($v < 16) migrar_v16($run, $eng);
     if ($v < 17) migrar_v17($run);
+    if ($v < 18) migrar_v18($run, $eng);
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
+}
+
+/** v18: bóvedas de claves de los clientes (una por cliente; los secretos van cifrados; ver app/boveda.php). */
+function migrar_v18(callable $run, string $eng): void
+{
+    $run('CREATE TABLE IF NOT EXISTS bovedas (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(150) NOT NULL,
+  empresa_id INT UNSIGNED NULL,
+  sal_frase VARCHAR(40) NULL,
+  dek_frase VARCHAR(200) NULL,
+  sal_rec VARCHAR(40) NULL,
+  dek_rec VARCHAR(200) NULL,
+  creado_por INT UNSIGNED NULL,
+  creado DATETIME NULL,
+  UNIQUE KEY uq_boveda_empresa (empresa_id),
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE SET NULL,
+  FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+)' . $eng);
+    $run('CREATE TABLE IF NOT EXISTS boveda (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  boveda_id INT UNSIGNED NOT NULL,
+  titulo VARCHAR(150) NOT NULL,
+  tipo VARCHAR(30) NOT NULL DEFAULT \'Otro\',
+  host VARCHAR(255) NULL,
+  usuario_enc TEXT NULL,
+  clave_enc TEXT NULL,
+  notas_enc TEXT NULL,
+  clave_cambiada DATETIME NULL,
+  creado_por INT UNSIGNED NULL,
+  creado DATETIME NULL,
+  actualizado_por INT UNSIGNED NULL,
+  actualizado DATETIME NULL,
+  FOREIGN KEY (boveda_id) REFERENCES bovedas(id) ON DELETE CASCADE,
+  FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (actualizado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+)' . $eng);
+    $run('CREATE TABLE IF NOT EXISTS boveda_acceso (
+  boveda_id INT UNSIGNED NOT NULL,
+  usuario_id INT UNSIGNED NOT NULL,
+  PRIMARY KEY (boveda_id, usuario_id),
+  FOREIGN KEY (boveda_id) REFERENCES bovedas(id) ON DELETE CASCADE,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+)' . $eng);
+    $run('CREATE TABLE IF NOT EXISTS boveda_log (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  fecha DATETIME NOT NULL,
+  usuario_id INT UNSIGNED NULL,
+  usuario_nombre VARCHAR(120) NULL,
+  accion VARCHAR(20) NOT NULL,
+  boveda_id INT UNSIGNED NULL,
+  boveda_nombre VARCHAR(150) NULL,
+  entrada_id INT UNSIGNED NULL,
+  detalle VARCHAR(200) NULL,
+  ip VARCHAR(45) NULL,
+  KEY ix_boveda_log_fecha (fecha)
+)' . $eng);
 }
 
 /** v17: los tickets quedan en dos categorías (Sistemas y Locativas) con «tipo de mantenimiento y arreglo»; las categorías antiguas de sistemas pasan a ser subcategoría. */
@@ -650,6 +708,10 @@ const MODULOS = [
     'ordenes' => ['Órdenes de servicio', 'tools', [
         'ver' => 'Consultar órdenes y descargar el PDF', 'crear' => 'Crear órdenes de servicio', 'editar' => 'Editar órdenes y registrar el trabajo realizado', 'eliminar' => 'Eliminar órdenes',
         'aprobar' => 'Completar, cancelar, reabrir y enviar por correo']],
+    'boveda' => ['Bóveda de claves', 'shield-lock', [
+        'ver' => 'Ver las bóvedas a las que tiene acceso y su listado de claves (sin usuarios ni contraseñas); desbloquearlas', 'crear' => 'Guardar claves nuevas', 'editar' => 'Editar claves',
+        'eliminar' => 'Eliminar claves', 'aprobar' => 'Ver y copiar usuarios, contraseñas y notas',
+        'administrar' => 'Ver todas las bóvedas, crearlas y eliminarlas, dar acceso a los usuarios, cambiar la frase y el código de recuperación y ver el registro de accesos']],
     'porfacturar' => ['Por facturar', 'receipt-cutoff', [
         'ver' => 'Consultar lo pendiente por facturar', 'crear' => 'Registrar pendientes', 'editar' => 'Editar pendientes', 'eliminar' => 'Eliminar pendientes',
         'aprobar' => 'Marcar como facturado, descartar o reabrir']],

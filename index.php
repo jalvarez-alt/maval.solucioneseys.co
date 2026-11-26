@@ -9,7 +9,7 @@ $pages = [
     'tickets', 'ticket', 'ticket_form',
     'inventario', 'equipo', 'equipo_form', 'computo', 'computo_lista', 'computo_form', 'importar',
     'mantenimiento', 'mantenimiento_form',
-    'cotizaciones', 'cotizacion', 'cotizacion_form', 'cotizacion_config', 'informes', 'informe', 'informe_form', 'ordenes', 'orden', 'orden_form',
+    'cotizaciones', 'cotizacion', 'cotizacion_form', 'cotizacion_config', 'informes', 'informe', 'informe_form', 'ordenes', 'orden', 'orden_form', 'boveda', 'boveda_form',
     'usuarios', 'usuario_form', 'roles', 'rol_form', 'empresas', 'empresa_form', 'empresas_importar', 'config_correo',
     'gastos', 'gasto_form', 'estadisticas', 'presupuesto', 'categorias',
     'cartera', 'cartera_importar', 'cartera_cliente', 'factura', 'factura_form', 'ingresos', 'por_facturar', 'por_facturar_form',
@@ -22,7 +22,7 @@ $modulo = [
     'tickets' => 'tickets', 'ticket' => 'tickets', 'ticket_form' => 'tickets', 'computo' => 'computo', 'computo_lista' => 'computo', 'inventario' => 'inventario',
     'mantenimiento' => 'mantenimiento', 'mantenimiento_form' => 'mantenimiento', 'usuarios' => 'usuarios', 'roles' => 'roles', 'rol_form' => 'roles', 'empresas' => 'empresas', 'empresas_importar' => 'empresas',
     'cotizaciones' => 'cotizaciones', 'cotizacion' => 'cotizaciones', 'cotizacion_form' => 'cotizaciones', 'cotizacion_config' => 'cotizaciones',
-    'informes' => 'informes', 'informe' => 'informes', 'informe_form' => 'informes', 'ordenes' => 'ordenes', 'orden' => 'ordenes', 'orden_form' => 'ordenes',
+    'informes' => 'informes', 'informe' => 'informes', 'informe_form' => 'informes', 'ordenes' => 'ordenes', 'orden' => 'ordenes', 'orden_form' => 'ordenes', 'boveda' => 'boveda', 'boveda_form' => 'boveda',
     'config_correo' => 'config', 'gastos' => 'gastos', 'estadisticas' => 'estadisticas', 'categorias' => 'categorias', 'cartera' => 'cartera', 'cartera_importar' => 'cartera', 'cartera_cliente' => 'cartera', 'factura' => 'cartera', 'ingresos' => 'ingresos', 'por_facturar' => 'porfacturar', 'por_facturar_form' => 'porfacturar',
 ];
 if (isset($modulo[$p])) require_perm($modulo[$p], 'ver');

@@ -484,3 +484,59 @@ CREATE TABLE IF NOT EXISTS orden_filas (
   c1 VARCHAR(250) NULL, c2 VARCHAR(250) NULL, c3 VARCHAR(250) NULL, c4 VARCHAR(250) NULL,
   FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS bovedas (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(150) NOT NULL,
+  empresa_id INT UNSIGNED NULL,
+  sal_frase VARCHAR(40) NULL,
+  dek_frase VARCHAR(200) NULL,
+  sal_rec VARCHAR(40) NULL,
+  dek_rec VARCHAR(200) NULL,
+  creado_por INT UNSIGNED NULL,
+  creado DATETIME NULL,
+  UNIQUE KEY uq_boveda_empresa (empresa_id),
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE SET NULL,
+  FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS boveda (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  boveda_id INT UNSIGNED NOT NULL,
+  titulo VARCHAR(150) NOT NULL,
+  tipo VARCHAR(30) NOT NULL DEFAULT 'Otro',
+  host VARCHAR(255) NULL,
+  usuario_enc TEXT NULL,
+  clave_enc TEXT NULL,
+  notas_enc TEXT NULL,
+  clave_cambiada DATETIME NULL,
+  creado_por INT UNSIGNED NULL,
+  creado DATETIME NULL,
+  actualizado_por INT UNSIGNED NULL,
+  actualizado DATETIME NULL,
+  FOREIGN KEY (boveda_id) REFERENCES bovedas(id) ON DELETE CASCADE,
+  FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (actualizado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS boveda_acceso (
+  boveda_id INT UNSIGNED NOT NULL,
+  usuario_id INT UNSIGNED NOT NULL,
+  PRIMARY KEY (boveda_id, usuario_id),
+  FOREIGN KEY (boveda_id) REFERENCES bovedas(id) ON DELETE CASCADE,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS boveda_log (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  fecha DATETIME NOT NULL,
+  usuario_id INT UNSIGNED NULL,
+  usuario_nombre VARCHAR(120) NULL,
+  accion VARCHAR(20) NOT NULL,
+  boveda_id INT UNSIGNED NULL,
+  boveda_nombre VARCHAR(150) NULL,
+  entrada_id INT UNSIGNED NULL,
+  detalle VARCHAR(200) NULL,
+  ip VARCHAR(45) NULL,
+  KEY ix_boveda_log_fecha (fecha)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
