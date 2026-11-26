@@ -36,10 +36,28 @@ function cot_num($n): string
 /** Subtotal y total (ítems + mano de obra). Las cotizaciones no manejan IVA. */
 function cot_totales(array $items, float $manoObra): array
 {
+    // Las columnas subtotal/total guardan solo lo cotizado en pesos (lo que usan los KPI y «Por facturar»); el detalle por moneda sale de cot_sumas()
     $sub = 0.0;
-    foreach ($items as $it) $sub += round((float)$it['cantidad'] * (float)$it['valor_unitario'], 2);
+    foreach ($items as $it) if (($it['moneda'] ?? 'COP') === 'COP') $sub += round((float)$it['cantidad'] * (float)$it['valor_unitario'], 2);
     $sub = round($sub, 2);
     return ['subtotal' => $sub, 'total' => round($sub + $manoObra, 2)];
+}
+
+/** Total de los ítems por moneda: ['COP' => 1000, 'USD' => 50]. La mano de obra (solo cotizaciones antiguas) es en pesos. */
+function cot_sumas(array $items, float $manoObra = 0): array
+{
+    $m = [];
+    foreach ($items as $it) { $k = isset(MONEDAS[$it['moneda'] ?? '']) ? $it['moneda'] : 'COP'; $m[$k] = round(($m[$k] ?? 0) + (float)$it['cantidad'] * (float)$it['valor_unitario'], 2); }
+    if ($manoObra > 0) $m['COP'] = ($m['COP'] ?? 0) + $manoObra;
+    return $m;
+}
+function cot_sumas_unir(array $a, array $b): array { foreach ($b as $k => $v) $a[$k] = ($a[$k] ?? 0) + $v; return $a; }
+/** «$ 1.000 + US$ 50,00» */
+function cot_sumas_txt(array $m): string
+{
+    if (!$m) return money(0);
+    $t = []; foreach ($m as $k => $v) $t[] = money($v, $k);
+    return implode(' + ', $t);
 }
 
 /** Normaliza un encabezado: minúsculas, sin tildes ni símbolos. */
@@ -172,11 +190,13 @@ function cot_acento(SimplePdf $pdf, float $x, float $y, float $w): void
 /** Total(es) de la cotización para listas y correos: un total, «$ a / $ b» con dos ofertas o la suma si se decidió sumarlas. */
 function cot_total_texto(array $c): string
 {
-    $t2 = (float)($c['total2'] ?? 0);
+    $o1 = $o2 = [];
+    foreach (cot_items((int)$c['id']) as $it) { if ((int)$it['oferta'] === 2) $o2[] = $it; else $o1[] = $it; }
+    $m1 = cot_sumas($o1, (float)($c['mano_obra'] ?? 0)); $m2 = cot_sumas($o2, (float)($c['mano_obra2'] ?? 0));
     $s1 = (int)($c['sumar1'] ?? 1) === 1; $s2 = (int)($c['sumar2'] ?? 1) === 1;
-    if ($t2 > 0 && !empty($c['sumar_ofertas']) && $s1 && $s2) return money((float)$c['total'] + $t2) . ' (suma de 2 ofertas)';
-    $a = $s1 ? money($c['total']) : 'sin total';
-    return $t2 > 0 ? $a . ' / ' . ($s2 ? money($t2) : 'sin total') : ($s1 ? $a : 'Sin total');
+    if ($o2 && !empty($c['sumar_ofertas']) && $s1 && $s2) return cot_sumas_txt(cot_sumas_unir($m1, $m2)) . ' (suma de 2 ofertas)';
+    $a = $s1 ? cot_sumas_txt($m1) : 'sin total';
+    return $o2 ? $a . ' / ' . ($s2 ? cot_sumas_txt($m2) : 'sin total') : ($s1 ? $a : 'Sin total');
 }
 
 /** Nombre de archivo del PDF. */
@@ -258,19 +278,21 @@ function cot_pdf_items(array $c, array $items): SimplePdf
         $pdf->text($xs[3] + 3, $y + 12.5, $pdf->fit((string)$it['marca'], $cols[3][1] - 6, 8.5), 8.5, false, COT_TEXTO);
         $pdf->text($xs[4], $y + 12.5, (string)$it['unidad'], 8.5, false, COT_TEXTO, 'C', $cols[4][1]);
         $pdf->text($xs[5], $y + 12.5, cot_num($it['cantidad']), 9, false, COT_TEXTO, 'C', $cols[5][1]);
-        $pdf->text($xs[6] + 3, $y + 12.5, money($it['valor_unitario']), 9, false, COT_TEXTO, 'R', $cols[6][1] - 6);
-        $pdf->text($xs[7] + 3, $y + 12.5, money($it['valor_total']), 9, true, COT_TEXTO, 'R', $cols[7][1] - 6);
+        $pdf->text($xs[6] + 3, $y + 12.5, money($it['valor_unitario'], $it['moneda'] ?? 'COP'), 9, false, COT_TEXTO, 'R', $cols[6][1] - 6);
+        $pdf->text($xs[7] + 3, $y + 12.5, money($it['valor_total'], $it['moneda'] ?? 'COP'), 9, true, COT_TEXTO, 'R', $cols[7][1] - 6);
         $y += $h;
     }
     $pdf->line($L, $y, $L + $W, $y, COT_NAVY, 1.2);
     // Totales
     if ($y + 140 > $bottom) { $pie($pdf->pageNo()); $pdf->addPage(); $y = 40; }
     $y += 10;
-    $tot = (int)($c['sumar1'] ?? 1) ? [['Sub Total', $c['subtotal'] + $c['mano_obra'], false], ['TOTAL', $c['total'], true]] : [];   // el usuario decide si se suman los ítems
-    foreach ($tot as [$lbl, $v, $b]) {
+    $sumas = cot_sumas($items, (float)($c['mano_obra'] ?? 0)); $multi = count($sumas) > 1;
+    $tot = [];
+    if ((int)($c['sumar1'] ?? 1)) foreach ($sumas as $mn => $vv) { $tot[] = ['Sub Total' . ($multi ? ' ' . $mn : ''), $vv, $mn, false]; $tot[] = ['TOTAL' . ($multi ? ' ' . $mn : ''), $vv, $mn, true]; }   // el usuario decide si se suman los ítems; un total por moneda
+    foreach ($tot as [$lbl, $v, $mn, $b]) {
         $pdf->rect($xs[6], $y, $cols[6][1] + $cols[7][1], 19, $b ? COT_NAVY : COT_TINTE, $b ? COT_NAVY : COT_LINEA, 0.8);
         $pdf->text($xs[6], $y + 13, $lbl, 9, true, $b ? '#ffffff' : COT_GRIS, 'R', $cols[6][1] - 4);
-        $pdf->text($xs[7], $y + 13, money($v), 10, true, $b ? '#ffffff' : COT_TEXTO, 'R', $cols[7][1] - 6);
+        $pdf->text($xs[7], $y + 13, money($v, $mn), 10, true, $b ? '#ffffff' : COT_TEXTO, 'R', $cols[7][1] - 6);
         $y += 19;
     }
     $y += 16;
@@ -375,8 +397,8 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
     $ofertas = [];
     foreach ($porOferta as $n => $its) {
         $ofertas[] = $n === 2
-            ? ['n' => 2, 'titulo' => (string)($c['titulo2'] ?? ''), 'items' => $its, 'mano' => $c['mano_obra2'] ?? 0, 'total' => $c['total2'] ?? 0, 'sumar' => (int)($c['sumar2'] ?? 1)]
-            : ['n' => 1, 'titulo' => (string)($c['titulo1'] ?? ''), 'items' => $its, 'mano' => $c['mano_obra'], 'total' => $c['total'], 'sumar' => (int)($c['sumar1'] ?? 1)];
+            ? ['n' => 2, 'titulo' => (string)($c['titulo2'] ?? ''), 'items' => $its, 'mano' => $c['mano_obra2'] ?? 0, 'sumas' => cot_sumas($its, (float)($c['mano_obra2'] ?? 0)), 'sumar' => (int)($c['sumar2'] ?? 1)]
+            : ['n' => 1, 'titulo' => (string)($c['titulo1'] ?? ''), 'items' => $its, 'mano' => $c['mano_obra'], 'sumas' => cot_sumas($its, (float)$c['mano_obra']), 'sumar' => (int)($c['sumar1'] ?? 1)];
     }
     $varias = count($ofertas) > 1;
     $titulo($varias ? '3. OFERTAS COMERCIALES:' : '3. OFERTA COMERCIAL:');
@@ -411,8 +433,8 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
             foreach ($desc as $k => $ln) $pdf->text($xs[0], $y + 11.5 + $k * 11, $ln, 9, false, COT_TEXTO, $k === 0 && count($desc) === 1 ? 'C' : 'L', $tw[0]);
             if ($extra !== '') $pdf->text($xs[0], $y + 11.5 + count($desc) * 11, $pdf->fit($extra, $tw[0] - 8, 7.5), 7.5, false, COT_GRIS, count($desc) === 1 ? 'C' : 'L', $tw[0]);
             $pdf->text($xs[1], $y + 11.5, cot_num($it['cantidad']), 9, false, COT_TEXTO, 'C', $tw[1]);
-            $pdf->text($xs[2] + 4, $y + 11.5, money($it['valor_unitario']), 9, false, COT_TEXTO, 'R', $tw[2] - 8);
-            $pdf->text($xs[3] + 4, $y + 11.5, money($it['valor_total']), 9, true, COT_TEXTO, 'R', $tw[3] - 8);
+            $pdf->text($xs[2] + 4, $y + 11.5, money($it['valor_unitario'], $it['moneda'] ?? 'COP'), 9, false, COT_TEXTO, 'R', $tw[2] - 8);
+            $pdf->text($xs[3] + 4, $y + 11.5, money($it['valor_total'], $it['moneda'] ?? 'COP'), 9, true, COT_TEXTO, 'R', $tw[3] - 8);
             $y += $h;
         }
         $asegurar(70);
@@ -425,20 +447,23 @@ function cot_pdf_propuesta(array $c, array $items): SimplePdf
         }
         $y += 8;
         if (!$of['sumar']) { $y += $varias ? 24 : 20; continue; }   // sin total: solo los valores de cada ítem
-        $pdf->rect($xs[0], $y, array_sum($tw), 19, COT_TINTE, COT_NAVY, 1.2);
-        $pdf->line($xs[3], $y, $xs[3], $y + 19, COT_NAVY, 1.0);
-        $pdf->text($xs[0], $y + 13, $varias ? 'Total oferta ' . $of['n'] : 'Total', 10, true, COT_NAVY, 'C', $tw[0] + $tw[1] + $tw[2]);
-        $pdf->text($xs[3] + 4, $y + 13, money($of['total']), 10.5, true, COT_NAVY, 'R', $tw[3] - 8);
-        $y += $varias ? 32 : 36;
+        $ns = max(1, count($of['sumas'])); $hs = 19 * $ns;
+        $asegurar($hs + 20);
+        $pdf->rect($xs[0], $y, array_sum($tw), $hs, COT_TINTE, COT_NAVY, 1.2);
+        $pdf->line($xs[3], $y, $xs[3], $y + $hs, COT_NAVY, 1.0);
+        $pdf->text($xs[0], $y + 13, ($varias ? 'Total oferta ' . $of['n'] : 'Total') . ($ns > 1 ? ' (por moneda)' : ''), 10, true, COT_NAVY, 'C', $tw[0] + $tw[1] + $tw[2]);
+        $lin = 0; foreach ($of['sumas'] ?: ['COP' => 0] as $mn => $vv) { $pdf->text($xs[3] + 4, $y + 13 + 19 * $lin, money($vv, $mn), 10.5, true, COT_NAVY, 'R', $tw[3] - 8); $lin++; }
+        $y += $hs + ($varias ? 13 : 17);
     }
     // Decisión del usuario: sumar las dos ofertas en un total combinado
     if ($varias && !empty($c['sumar_ofertas']) && $ofertas[0]['sumar'] && $ofertas[1]['sumar']) {
         $asegurar(40);
-        $suma = (float)$c['total'] + (float)($c['total2'] ?? 0);
-        $pdf->rect($xs[0], $y, array_sum($tw), 21, COT_NAVY, COT_NAVY, 1.2);
+        $suma = cot_sumas_unir($ofertas[0]['sumas'], $ofertas[1]['sumas']); $hs = 21 + 19 * (max(1, count($suma)) - 1);
+        $asegurar($hs + 30);
+        $pdf->rect($xs[0], $y, array_sum($tw), $hs, COT_NAVY, COT_NAVY, 1.2);
         $pdf->text($xs[0], $y + 14, 'TOTAL OFERTA 1 + OFERTA 2', 10, true, '#ffffff', 'C', $tw[0] + $tw[1] + $tw[2]);
-        $pdf->text($xs[3] + 4, $y + 14, money($suma), 11, true, '#ffffff', 'R', $tw[3] - 8);
-        $y += 48;
+        $lin = 0; foreach ($suma ?: ['COP' => 0] as $mn => $vv) { $pdf->text($xs[3] + 4, $y + 14 + 19 * $lin, money($vv, $mn), 11, true, '#ffffff', 'R', $tw[3] - 8); $lin++; }
+        $y += $hs + 27;
     }
 
     // 4. Condiciones comerciales

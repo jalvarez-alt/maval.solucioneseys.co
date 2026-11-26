@@ -337,6 +337,7 @@ CREATE TABLE IF NOT EXISTS cotizacion_items (
   cantidad DECIMAL(12,2) NOT NULL DEFAULT 1,
   valor_unitario DECIMAL(15,2) NOT NULL DEFAULT 0,
   valor_total DECIMAL(15,2) NOT NULL DEFAULT 0,
+  moneda VARCHAR(3) NOT NULL DEFAULT 'COP',
   FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

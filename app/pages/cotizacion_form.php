@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($desc === '') continue;
             $cant = $num($_POST['it_cant'][$o][$i] ?? '1'); $vu = $num($_POST['it_vu'][$o][$i] ?? '0');
             $its[$o][] = ['referencia' => mb_substr(trim((string)($_POST['it_ref'][$o][$i] ?? '')), 0, 60), 'descripcion' => mb_substr($desc, 0, 500), 'marca' => mb_substr(trim((string)($_POST['it_marca'][$o][$i] ?? '')), 0, 60),
-                'unidad' => mb_substr(trim((string)($_POST['it_uni'][$o][$i] ?? '')), 0, 20), 'cantidad' => $cant > 0 ? $cant : 1, 'valor_unitario' => $vu];
+                'unidad' => mb_substr(trim((string)($_POST['it_uni'][$o][$i] ?? '')), 0, 20), 'cantidad' => $cant > 0 ? $cant : 1, 'valor_unitario' => $vu, 'moneda' => isset(MONEDAS[$_POST['it_mon'][$o][$i] ?? '']) ? $_POST['it_mon'][$o][$i] : 'COP'];
         }
     }
     $mano = [1 => $num(post('mano_obra_1', '0')), 2 => $oferta2 ? $num(post('mano_obra_2', '0')) : 0.0]; // solo llegan en cotizaciones antiguas
@@ -158,7 +158,7 @@ function cot_tabla_items(int $o, array $lista, bool $esProp): void
 { ?>
   <div class="tbl-wrap"><table class="tbl cot-items" data-o="<?= $o ?>">
     <thead><tr><th style="width:78px" class="c">#</th><th class="col-ref" style="width:110px">Referencia</th><th><?= $esProp ? 'Ítem' : 'Descripción' ?></th><th class="col-marca" style="width:110px">Marca</th><th class="col-uni" style="width:86px">Unidad</th>
-      <th style="width:80px">Cant</th><th style="width:130px">Valor unitario</th><th style="width:130px" class="r">Valor total</th><th style="width:36px"></th></tr></thead>
+      <th style="width:80px">Cant</th><th style="width:130px">Valor unitario</th><th style="width:84px">Moneda</th><th style="width:130px" class="r">Valor total</th><th style="width:36px"></th></tr></thead>
     <tbody>
     <?php foreach ($lista as $it): ?>
       <tr>
@@ -173,6 +173,7 @@ function cot_tabla_items(int $o, array $lista, bool $esProp): void
         <td class="col-uni"><input class="form-control form-control-sm" name="it_uni[<?= $o ?>][]" list="unidades" value="<?= e($it['unidad']) ?>" maxlength="20"></td>
         <td><input class="form-control form-control-sm q" name="it_cant[<?= $o ?>][]" value="<?= e(cot_num($it['cantidad'])) ?>" inputmode="decimal"></td>
         <td><input class="form-control form-control-sm vu" name="it_vu[<?= $o ?>][]" value="<?= e($it['valor_unitario'] === '' ? '' : (float)$it['valor_unitario']) ?>" inputmode="decimal" placeholder="0"></td>
+        <td><select class="form-select form-select-sm mon" name="it_mon[<?= $o ?>][]"><?php foreach (MONEDAS as $cod => $mm) echo '<option value="' . $cod . '"' . (($it['moneda'] ?? 'COP') === $cod ? ' selected' : '') . '>' . $cod . '</option>'; ?></select></td>
         <td class="r fw-semibold vt nowrap">$ 0</td>
         <td><button type="button" class="btn btn-sm btn-outline-danger del" title="Quitar el ítem"><i class="bi bi-x-lg"></i></button></td>
       </tr>
@@ -309,25 +310,32 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
     else { v = v.replace(/,/g, ''); if ((v.match(/\./g) || []).length > 1 || (d !== -1 && v.length - d - 1 === 3 && c === -1)) v = v.replace(/\./g, ''); }
     return parseFloat(v) || 0;
   }
-  var money = function (n) { return '$ ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'); };
+  var MON = <?= json_encode(array_map(fn($m) => [$m[1], $m[2]], MONEDAS)) ?>;
+  var fmt = function (n, c) {
+    var m = MON[c] || MON.COP, p = Math.abs(n).toFixed(m[1]).split('.');
+    return (n < 0 ? '-' : '') + m[0] + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (p[1] ? ',' + p[1] : '');
+  };
+  var fmtMapa = function (map) { var k = Object.keys(map); return k.length ? k.map(function (c) { return fmt(map[c], c); }).join(' + ') : fmt(0, 'COP'); };
+  var unir = function (a, b) { var r = {}; [a, b].forEach(function (m) { for (var c in m) r[c] = (r[c] || 0) + m[c]; }); return r; };
   function tabla(o) { return document.querySelector('table.cot-items[data-o="' + o + '"] tbody'); }
   function recalc() {
-    var tot = {1: 0, 2: 0};
+    var tot = {1: {}, 2: {}};
     [1, 2].forEach(function (o) {
       var body = tabla(o); if (!body) return;
-      var sub = 0;
+      var sub = {};
       Array.prototype.forEach.call(body.rows, function (r, i) {
         var pos = r.querySelector('.pos'); if (pos !== document.activeElement) pos.value = i + 1;   // no pisar lo que se está escribiendo
-        var t = pm(r.querySelector('.q').value) * pm(r.querySelector('.vu').value);
-        r.querySelector('.vt').textContent = money(t); sub += t;
+        var t = pm(r.querySelector('.q').value) * pm(r.querySelector('.vu').value), c = r.querySelector('.mon').value;
+        r.querySelector('.vt').textContent = fmt(t, c); sub[c] = (sub[c] || 0) + t;
       });
       var m = document.querySelector('.mano[data-o="' + o + '"]'), mano = m ? pm(m.value) : 0;
+      if (mano) sub.COP = (sub.COP || 0) + mano;
       var chk = document.querySelector('.sumar-chk[data-o="' + o + '"]'), rs = document.querySelector('table[data-resumen="' + o + '"]');
       if (rs && chk) rs.style.opacity = chk.checked ? '1' : '.4';
-      var set = function (k, val) { var el = document.querySelector('[data-t="' + k + '"][data-o="' + o + '"]'); if (el) el.textContent = money(val); };
-      set('sub', sub); set('tot', sub + mano); tot[o] = sub + mano;
+      var set = function (k, val) { var el = document.querySelector('[data-t="' + k + '"][data-o="' + o + '"]'); if (el) el.textContent = val; };
+      set('sub', fmtMapa(sub)); set('tot', fmtMapa(sub)); tot[o] = sub;
     });
-    if ($('t_suma')) $('t_suma').textContent = money(tot[1] + tot[2]);
+    if ($('t_suma')) $('t_suma').textContent = fmtMapa(unir(tot[1], tot[2]));
   }
   function fit(t) { t.style.height = 'auto'; t.style.height = Math.max(31, t.scrollHeight) + 'px'; }
   document.addEventListener('click', function (e) {
@@ -371,6 +379,7 @@ function cot_bloque_totales(int $o, bool $esProp, array $v): void
     mover(fila, b.classList.contains('up') ? i - 1 : i + 1);
     fila.querySelector('textarea').focus();
   });
+  document.addEventListener('change', function (e) { if (e.target.classList && e.target.classList.contains('mon')) recalc(); });
   document.addEventListener('change', function (e) {
     if (!e.target.classList || !e.target.classList.contains('pos')) return;
     mover(e.target.closest('tr'), parseInt(e.target.value, 10) || 1);

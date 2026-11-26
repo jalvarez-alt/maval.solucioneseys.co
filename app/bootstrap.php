@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.23.0');
-define('DB_VERSION', 18);
+define('APP_VERSION', '1.24.0');
+define('DB_VERSION', 19);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -147,6 +147,7 @@ function migrar(): void
     if ($v < 16) migrar_v16($run, $eng);
     if ($v < 17) migrar_v17($run);
     if ($v < 18) migrar_v18($run, $eng);
+    if ($v < 19) $run("ALTER TABLE cotizacion_items ADD COLUMN moneda VARCHAR(3) NOT NULL DEFAULT 'COP'", true); // v19: moneda de cada ítem (COP, USD, EUR)
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
 }
@@ -401,7 +402,8 @@ migrar();
 function e($v): string { return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8'); }
 function now(): string { return date('Y-m-d H:i:s'); }
 function today(): string { return date('Y-m-d'); }
-function money($v): string { return '$ ' . number_format((float)$v, 0, ',', '.'); }
+const MONEDAS = ['COP' => ['Peso colombiano (COP)', '$ ', 0], 'USD' => ['Dólar estadounidense (USD)', 'US$ ', 2], 'EUR' => ['Euro (EUR)', '€ ', 2]];
+function money($v, string $moneda = 'COP'): string { $m = MONEDAS[$moneda] ?? MONEDAS['COP']; return $m[1] . number_format((float)$v, $m[2], ',', '.'); }
 function num($v, int $d = 0): string { return number_format((float)$v, $d, ',', '.'); }
 function fdate(?string $d, bool $time = false): string
 {

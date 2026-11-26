@@ -109,19 +109,19 @@ $msgDef = "Cordial saludo" . ($c['atencion'] ? ', ' . $c['atencion'] : '') . ".\
         <?php foreach ($of['items'] as $k => $it): ?>
           <tr><td class="c muted"><?= $k + 1 ?></td><?php if (!$esProp): ?><td><?= e($it['referencia'] ?: '—') ?></td><?php endif; ?><td><?= e($it['descripcion']) ?></td>
             <?php if (!$esProp): ?><td><?= e($it['marca'] ?: '—') ?></td><td><?= e($it['unidad'] ?: '—') ?></td><?php endif; ?>
-            <td class="c"><?= e(cot_num($it['cantidad'])) ?></td><td class="r nowrap"><?= money($it['valor_unitario']) ?></td><td class="r nowrap"><?= money($it['valor_total']) ?></td></tr>
+            <td class="c"><?= e(cot_num($it['cantidad'])) ?></td><td class="r nowrap"><?= money($it['valor_unitario'], $it['moneda'] ?? 'COP') ?></td><td class="r nowrap"><?= money($it['valor_total'], $it['moneda'] ?? 'COP') ?></td></tr>
         <?php endforeach; ?>
         </tbody>
         <tfoot>
           <?php $cs = $esProp ? 4 : 7; ?>
           <?php if ((float)$of['mano'] > 0): ?><tr><td colspan="<?= $cs ?>" class="r muted">Mano de obra</td><td class="r"><?= money($of['mano']) ?></td></tr><?php endif; ?>
-          <?php if ($of['sumar']): ?><tr><td colspan="<?= $cs ?>" class="r fw-bold">TOTAL<?= count($ofertas) > 1 ? ' OFERTA ' . $o : '' ?></td><td class="r fw-bold"><?= money($of['total']) ?></td></tr><?php else: ?><tr><td colspan="<?= $cs + 1 ?>" class="muted small">Esta oferta se presenta sin total (solo valores por ítem).</td></tr><?php endif; ?>
+          <?php if ($of['sumar']): ?><tr><td colspan="<?= $cs ?>" class="r fw-bold">TOTAL<?= count($ofertas) > 1 ? ' OFERTA ' . $o : '' ?></td><td class="r fw-bold"><?= e(cot_sumas_txt(cot_sumas($of['items'], (float)$of['mano']))) ?></td></tr><?php else: ?><tr><td colspan="<?= $cs + 1 ?>" class="muted small">Esta oferta se presenta sin total (solo valores por ítem).</td></tr><?php endif; ?>
         </tfoot>
       </table></div>
     </div>
     <?php endforeach; ?>
     <?php if (count($ofertas) > 1 && !empty($c["sumar_ofertas"]) && $ofertas[1]['sumar'] && $ofertas[2]['sumar']): ?>
-    <div class="panel d-flex justify-content-between align-items-center"><strong>TOTAL OFERTA 1 + OFERTA 2</strong><strong class="fs-5"><?= money($c["total"] + $c["total2"]) ?></strong></div>
+    <div class="panel d-flex justify-content-between align-items-center"><strong>TOTAL OFERTA 1 + OFERTA 2</strong><strong class="fs-5"><?= e(cot_sumas_txt(cot_sumas_unir(cot_sumas($ofertas[1]['items'], (float)$ofertas[1]['mano']), cot_sumas($ofertas[2]['items'], (float)$ofertas[2]['mano'])))) ?></strong></div>
     <?php endif; ?>
     <?php if (!$esProp && trim(strip_tags((string)$c['texto_final'])) !== ''): ?>
     <div class="panel"><div class="panel-h"><h3>Texto al final</h3></div><div class="msg-b rt-vista"><?= cot_rich_html($c['texto_final']) ?></div></div>

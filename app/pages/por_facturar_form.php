@@ -46,8 +46,9 @@ if (!$r) {
         'referencia' => '', 'fecha_prevista' => date('Y-m-d', strtotime('+7 days')), 'estado' => 'Pendiente'];
     if ($cot) {
         $suma = (float)$cot['total'] + (!empty($cot['sumar_ofertas']) ? (float)$cot['total2'] : 0);
-        $r = array_merge($r, ['cliente_nombre' => $cot['cliente_nombre'], 'cliente_nit' => $cot['cliente_nit'], 'concepto' => 'Cotización No. ' . $cot['consecutivo'] . ' aceptada',
-            'valor' => $suma, 'referencia' => 'Cotización ' . $cot['consecutivo'], 'empresa_id' => $cot['empresa_id'] && isset($propias[(int)$cot['empresa_id']]) ? $cot['empresa_id'] : $r['empresa_id']]);
+        $otras = array_diff(array_keys(cot_sumas(cot_items((int)$cot['id']))), ['COP']);
+        $r = array_merge($r, ['cliente_nombre' => $cot['cliente_nombre'], 'cliente_nit' => $cot['cliente_nit'], 'concepto' => 'Cotización No. ' . $cot['consecutivo'] . ' aceptada' . ($otras ? ' (incluye ítems en ' . implode(' y ', $otras) . ': el valor es solo la parte en pesos)' : ''),
+            'valor' => $suma > 0 ? $suma : '', 'referencia' => 'Cotización ' . $cot['consecutivo'], 'empresa_id' => $cot['empresa_id'] && isset($propias[(int)$cot['empresa_id']]) ? $cot['empresa_id'] : $r['empresa_id']]);
     }
 }
 if ($inf) {

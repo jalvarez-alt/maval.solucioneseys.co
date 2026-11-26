@@ -25,7 +25,7 @@ $page = max(1, (int)get('pg', 1));
 $total = (int)val("SELECT COUNT(*) FROM cotizaciones c WHERE $w", $params);
 $rows = all("SELECT c.*, (SELECT COUNT(*) FROM cotizacion_items i WHERE i.cotizacion_id = c.id) AS n_items FROM cotizaciones c WHERE $w ORDER BY c.consecutivo DESC LIMIT $per OFFSET " . (($page - 1) * $per), $params);
 
-$k = fn(string $cond, array $p = []) => all("SELECT COUNT(*) n, COALESCE(SUM(total), 0) t FROM cotizaciones WHERE $cond", $p)[0];
+$k = fn(string $cond, array $p = []) => all("SELECT COUNT(*) n, COALESCE(SUM(total), 0) t FROM cotizaciones WHERE $cond", $p)[0];   // `total` guarda solo lo cotizado en pesos
 $kMes = $k('YEAR(fecha) = ? AND MONTH(fecha) = ? AND estado <> \'Anulada\'', [(int)date('Y'), (int)date('n')]);
 $kPend = $k("estado IN ('Borrador', 'Enviada')");
 $kAcep = $k("estado = 'Aceptada' AND YEAR(fecha) = ?", [(int)date('Y')]);
