@@ -19,6 +19,8 @@ if ($a['entidad'] === 'ticket') {
     $ok = can('cartera', 'ver');
 } elseif ($a['entidad'] === 'informe') {
     $ok = can('informes', 'ver');
+} elseif (in_array($a['entidad'], ['orden_antes', 'orden_despues'], true)) {
+    $ok = can('ordenes', 'ver');
 } else {
     $ok = is_admin();
 }

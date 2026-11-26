@@ -434,3 +434,53 @@ CREATE TABLE IF NOT EXISTS informe_filas (
   c1 VARCHAR(250) NULL, c2 VARCHAR(250) NULL, c3 VARCHAR(250) NULL, c4 VARCHAR(250) NULL, c5 VARCHAR(250) NULL, c6 VARCHAR(250) NULL,
   FOREIGN KEY (informe_id) REFERENCES informes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ordenes (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  consecutivo INT UNSIGNED NOT NULL,
+  estado VARCHAR(12) NOT NULL DEFAULT 'Pendiente',
+  tipo VARCHAR(40) NOT NULL,
+  prioridad VARCHAR(10) NOT NULL DEFAULT 'Normal',
+  empresa_id INT UNSIGNED NULL,
+  cliente_nombre VARCHAR(150) NOT NULL,
+  cliente_nit VARCHAR(30) NULL,
+  contacto VARCHAR(150) NULL,
+  telefono VARCHAR(40) NULL,
+  cliente_email VARCHAR(150) NULL,
+  sede VARCHAR(200) NULL,
+  tecnico_id INT UNSIGNED NULL,
+  tecnico_nombre VARCHAR(120) NULL,
+  ticket_id INT UNSIGNED NULL,
+  cotizacion_id INT UNSIGNED NULL,
+  informe_id INT UNSIGNED NULL,
+  referencia VARCHAR(80) NULL,
+  fecha_programada DATE NULL,
+  hora_programada VARCHAR(5) NULL,
+  fecha_inicio DATETIME NULL,
+  fecha_fin DATETIME NULL,
+  descripcion TEXT NULL,
+  trabajo_realizado TEXT NULL,
+  observaciones TEXT NULL,
+  firma_nombre VARCHAR(120) NULL,
+  firma_cargo VARCHAR(100) NULL,
+  enviado DATETIME NULL,
+  enviado_a VARCHAR(500) NULL,
+  creado_por INT UNSIGNED NULL,
+  creado DATETIME NULL,
+  actualizado DATETIME NULL,
+  UNIQUE KEY uq_orden_consecutivo (consecutivo),
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE SET NULL,
+  FOREIGN KEY (tecnico_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE SET NULL,
+  FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE SET NULL,
+  FOREIGN KEY (informe_id) REFERENCES informes(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS orden_filas (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  orden_id INT UNSIGNED NOT NULL,
+  seccion VARCHAR(12) NOT NULL,
+  orden INT NOT NULL DEFAULT 0,
+  c1 VARCHAR(250) NULL, c2 VARCHAR(250) NULL, c3 VARCHAR(250) NULL, c4 VARCHAR(250) NULL,
+  FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

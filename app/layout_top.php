@@ -7,7 +7,7 @@ $p = [
     'ticket' => 'tickets', 'ticket_form' => 'tickets', 'equipo' => (es_computo((string)val('SELECT tipo FROM equipos WHERE id = ?', [(int)($_GET['id'] ?? 0)])) ? 'computo' : 'inventario'), 'equipo_form' => 'inventario',
     'computo_lista' => 'computo', 'computo_form' => 'computo', 'importar' => (($_GET['inv'] ?? '') === 'otros' ? 'inventario' : 'computo'),
     'gasto_form' => 'gastos', 'presupuesto' => 'estadisticas', 'factura' => 'cartera', 'factura_form' => 'cartera',
-    'usuario_form' => 'usuarios', 'empresa_form' => 'empresas', 'empresas_importar' => 'empresas', 'cartera_importar' => 'cartera', 'cartera_cliente' => 'cartera', 'rol_form' => 'roles', 'por_facturar_form' => 'por_facturar', 'informe' => 'informes', 'informe_form' => 'informes', 'mantenimiento_form' => 'mantenimiento', 'cotizacion' => 'cotizaciones', 'cotizacion_form' => 'cotizaciones', 'cotizacion_config' => 'cotizaciones',
+    'usuario_form' => 'usuarios', 'empresa_form' => 'empresas', 'empresas_importar' => 'empresas', 'cartera_importar' => 'cartera', 'cartera_cliente' => 'cartera', 'rol_form' => 'roles', 'por_facturar_form' => 'por_facturar', 'informe' => 'informes', 'informe_form' => 'informes', 'orden' => 'ordenes', 'orden_form' => 'ordenes', 'mantenimiento_form' => 'mantenimiento', 'cotizacion' => 'cotizaciones', 'cotizacion_form' => 'cotizaciones', 'cotizacion_config' => 'cotizaciones',
 ][$p] ?? $p;
 $appName = $CONFIG['app_name'] ?? 'MAVAL';
 $abiertos = $mantVencidos = $pendFact = 0;
@@ -50,9 +50,10 @@ function nav_item(string $page, string $icon, string $label, string $current, st
       <?php if (can('computo')) echo nav_item('computo', 'pc-display', 'Inventario de cómputo', $p); ?>
       <?php if (can('inventario')) echo nav_item('inventario', 'phone', 'Otros equipos', $p); ?>
       <?php if (can('mantenimiento')) echo nav_item('mantenimiento', 'calendar-check', 'Planeador de mantenimiento', $p, $mantVencidos ? '<em class="cnt" style="background:#b91c1c" title="Mantenimientos vencidos">' . $mantVencidos . '</em>' : ''); ?>
-      <?php if (can('cotizaciones') || can('informes')): ?>
+      <?php if (can('cotizaciones') || can('informes') || can('ordenes')): ?>
       <div class="nav-h">Comercial</div>
       <?php if (can('cotizaciones')) echo nav_item('cotizaciones', 'file-earmark-text', 'Cotizaciones', $p); ?>
+      <?php if (can('ordenes')) echo nav_item('ordenes', 'tools', 'Órdenes de servicio', $p); ?>
       <?php if (can('informes')) echo nav_item('informes', 'clipboard-check', 'Informes de servicio', $p); ?>
       <?php endif; ?>
       <?php if (can('gastos') || can('estadisticas') || can('cartera') || can('ingresos') || can('porfacturar')): ?>

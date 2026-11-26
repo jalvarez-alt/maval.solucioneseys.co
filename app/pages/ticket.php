@@ -174,6 +174,13 @@ function duracion(string $desde, ?string $hasta): string
         <dt><?= $t['cerrado'] ? 'Tiempo de solución' : 'Tiempo abierto' ?></dt><dd><?= duracion($t['creado'], $t['cerrado']) ?></dd>
       </dl>
     </div>
+    <?php if ($staff && can('ordenes')): $ords = all('SELECT id, consecutivo, estado, tipo FROM ordenes WHERE ticket_id = ? ORDER BY id DESC', [$id]); ?>
+    <div class="panel meta">
+      <div class="panel-h"><h3>Órdenes de servicio</h3><?php if (can('ordenes', 'crear')): ?><div class="actions"><a class="btn btn-sm btn-outline-primary" href="<?= url('orden_form', ['ticket' => $id]) ?>"><i class="bi bi-plus-lg"></i> Crear</a></div><?php endif; ?></div>
+      <?php if ($ords): ?><ul class="list-unstyled small mb-0"><?php require_once APP_DIR . '/ordenes.php'; foreach ($ords as $od): ?><li class="mb-1"><a href="<?= url('orden', ['id' => $od['id']]) ?>"><?= e(ord_codigo($od)) ?></a> <?= e($od['tipo']) ?> <?= ord_badge($od['estado']) ?></li><?php endforeach; ?></ul>
+      <?php else: ?><div class="small muted">Sin órdenes de servicio.</div><?php endif; ?>
+    </div>
+    <?php endif; ?>
     <?php if ($t['equipo_id']): ?>
     <div class="panel meta">
       <div class="panel-h"><h3>Equipo</h3><div class="actions"><a class="small" href="<?= url('equipo', ['id' => $t['equipo_id']]) ?>">Ver hoja de vida</a></div></div>

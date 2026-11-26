@@ -7,8 +7,8 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
 define('UPLOAD_DIR', APP_ROOT . '/uploads');
-define('APP_VERSION', '1.21.0');
-define('DB_VERSION', 15);
+define('APP_VERSION', '1.22.0');
+define('DB_VERSION', 17);
 /** Versión de un archivo estático según su fecha de modificación: obliga al navegador a recargarlo cuando cambia. */
 function asset(string $path): string { $f = APP_ROOT . '/' . $path; return $path . '?v=' . (is_file($f) ? filemtime($f) : APP_VERSION); }
 
@@ -144,8 +144,73 @@ function migrar(): void
     if ($v < 13) $run('ALTER TABLE tickets ADD COLUMN subcategoria VARCHAR(60) NULL', true); // v13: subcategoría de «Mantenimiento y arreglos locativos»
     if ($v < 14) foreach (['tk_desde VARCHAR(150) NULL', 'tk_desde_nombre VARCHAR(120) NULL', 'tk_responder VARCHAR(150) NULL', 'tk_host VARCHAR(150) NULL', 'tk_puerto INT NULL', 'tk_seguridad VARCHAR(5) NULL', 'tk_usuario VARCHAR(150) NULL', 'tk_clave VARCHAR(500) NULL'] as $col) $run('ALTER TABLE empresas ADD COLUMN ' . $col, true); // v14: cuenta de correo propia de la empresa para sus tickets
     if ($v < 15) $run('ALTER TABLE empresas ADD COLUMN notificar_correos VARCHAR(1000) NULL', true); // v15: correos libres a notificar de los tickets de la empresa
+    if ($v < 16) migrar_v16($run, $eng);
+    if ($v < 17) migrar_v17($run);
     $run("DELETE FROM app_meta WHERE clave = 'db_version'");
     $run("INSERT INTO app_meta (clave, valor) VALUES ('db_version', '" . DB_VERSION . "')");
+}
+
+/** v17: los tickets quedan en dos categorías (Sistemas y Locativas) con «tipo de mantenimiento y arreglo»; las categorías antiguas de sistemas pasan a ser subcategoría. */
+function migrar_v17(callable $run): void
+{
+    $run('ALTER TABLE tickets MODIFY subcategoria VARCHAR(120) NULL', true);
+    foreach (['Hardware', 'Software', 'Red e internet', 'Impresión', 'Correo', 'Accesos y contraseñas', 'Cámaras y seguridad'] as $c) {
+        $run("UPDATE tickets SET subcategoria = categoria, categoria = 'Sistemas' WHERE categoria = " . db()->quote($c), true);
+    }
+    $run("UPDATE tickets SET categoria = 'Locativas' WHERE categoria = 'Mantenimiento y arreglos locativos'", true);
+}
+
+/** v16: órdenes de servicio (orden de trabajo del técnico con materiales, horas y fotos). */
+function migrar_v16(callable $run, string $eng): void
+{
+    $run('CREATE TABLE IF NOT EXISTS ordenes (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  consecutivo INT UNSIGNED NOT NULL,
+  estado VARCHAR(12) NOT NULL DEFAULT \'Pendiente\',
+  tipo VARCHAR(40) NOT NULL,
+  prioridad VARCHAR(10) NOT NULL DEFAULT \'Normal\',
+  empresa_id INT UNSIGNED NULL,
+  cliente_nombre VARCHAR(150) NOT NULL,
+  cliente_nit VARCHAR(30) NULL,
+  contacto VARCHAR(150) NULL,
+  telefono VARCHAR(40) NULL,
+  cliente_email VARCHAR(150) NULL,
+  sede VARCHAR(200) NULL,
+  tecnico_id INT UNSIGNED NULL,
+  tecnico_nombre VARCHAR(120) NULL,
+  ticket_id INT UNSIGNED NULL,
+  cotizacion_id INT UNSIGNED NULL,
+  informe_id INT UNSIGNED NULL,
+  referencia VARCHAR(80) NULL,
+  fecha_programada DATE NULL,
+  hora_programada VARCHAR(5) NULL,
+  fecha_inicio DATETIME NULL,
+  fecha_fin DATETIME NULL,
+  descripcion TEXT NULL,
+  trabajo_realizado TEXT NULL,
+  observaciones TEXT NULL,
+  firma_nombre VARCHAR(120) NULL,
+  firma_cargo VARCHAR(100) NULL,
+  enviado DATETIME NULL,
+  enviado_a VARCHAR(500) NULL,
+  creado_por INT UNSIGNED NULL,
+  creado DATETIME NULL,
+  actualizado DATETIME NULL,
+  UNIQUE KEY uq_orden_consecutivo (consecutivo),
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE SET NULL,
+  FOREIGN KEY (tecnico_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE SET NULL,
+  FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE SET NULL,
+  FOREIGN KEY (informe_id) REFERENCES informes(id) ON DELETE SET NULL
+)' . $eng);
+    $run('CREATE TABLE IF NOT EXISTS orden_filas (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  orden_id INT UNSIGNED NOT NULL,
+  seccion VARCHAR(12) NOT NULL,
+  orden INT NOT NULL DEFAULT 0,
+  c1 VARCHAR(250) NULL, c2 VARCHAR(250) NULL, c3 VARCHAR(250) NULL, c4 VARCHAR(250) NULL,
+  FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE CASCADE
+)' . $eng);
 }
 
 /** v12: informes de servicio (instalación de cámaras, redes inalámbricas y software). */
@@ -520,9 +585,22 @@ function factura_estado(array $f): string
 }
 
 // ---------- Catálogos ----------
-const TICKET_CATEGORIAS = ['Hardware', 'Software', 'Red e internet', 'Impresión', 'Correo', 'Accesos y contraseñas', 'Telefonía / celular', 'Cámaras y seguridad', 'Climatización', 'Mantenimiento y arreglos locativos', 'Otro'];
-const TICKET_CAT_LOCATIVO = 'Mantenimiento y arreglos locativos';
-const TICKET_SUBCATEGORIAS_LOCATIVO = ['Mampostería', 'Metalúrgico', 'Mantenimiento de maquinaria', 'Mantenimiento de zonas comunes'];
+const TICKET_CATEGORIAS = ['Sistemas', 'Locativas'];
+/** Tipo de mantenimiento y arreglo de cada categoría (la subcategoría es obligatoria al crear o editar un ticket). */
+const TICKET_SUBCATEGORIAS = [
+    'Sistemas' => ['Hardware', 'Software', 'Red e internet', 'Impresión', 'Correo', 'Accesos y contraseñas', 'Cámaras y seguridad'],
+    'Locativas' => [
+        'Estibas', 'Escaleras producción', 'Módulo de sopleteo', 'Nomenclatura',
+        'Baños y sanitarios (incluyendo gabinete baño, lavamanos)', 'Canal', 'Colectores aguas negras / trampa de grasa', 'Estructura (vigas, columnas)',
+        'Invernadero (estructura - malla - tuberías)', 'Paredes', 'Parqueadero (demarcaciones)', 'Piso',
+        'Puertas y ventanas (incluyendo casino puertas y ventanas)', 'Tanque séptico', 'Techo (incluyendo techo icopor)', 'Interruptor encendido (solo cambio de tapa o embellecedor externo)',
+        'Llave de agua', 'Rejilla', 'Toma corriente (solo inspección visual o reporte, sin intervenir circuitos)', 'Archivador',
+        'Cerradura', 'Escritorio', 'Estantería', 'Gabinete baño maría tipo barra',
+        'Silla', 'Mantenimiento techos, paredes, columnas bodega 1 y 2 bodegas', 'Mantenimiento techos, paredes, pisos, lámparas, cielo raso área administrativa', 'Mantenimiento techos, paredes, pisos, lámparas, cielo raso área producción',
+    ],
+];
+
+
 const TICKET_PRIORIDADES = ['Baja', 'Media', 'Alta', 'Crítica'];
 const TICKET_ESTADOS = ['Abierto', 'En proceso', 'En espera', 'Resuelto', 'Cerrado'];
 const TICKET_ACTIVOS = ['Abierto', 'En proceso', 'En espera'];
@@ -569,6 +647,9 @@ const MODULOS = [
     'informes' => ['Informes de servicio', 'clipboard-check', [
         'ver' => 'Consultar informes y descargar el PDF', 'crear' => 'Crear informes', 'editar' => 'Editar informes en borrador', 'eliminar' => 'Eliminar informes',
         'aprobar' => 'Finalizar, reabrir y enviar por correo']],
+    'ordenes' => ['Órdenes de servicio', 'tools', [
+        'ver' => 'Consultar órdenes y descargar el PDF', 'crear' => 'Crear órdenes de servicio', 'editar' => 'Editar órdenes y registrar el trabajo realizado', 'eliminar' => 'Eliminar órdenes',
+        'aprobar' => 'Completar, cancelar, reabrir y enviar por correo']],
     'porfacturar' => ['Por facturar', 'receipt-cutoff', [
         'ver' => 'Consultar lo pendiente por facturar', 'crear' => 'Registrar pendientes', 'editar' => 'Editar pendientes', 'eliminar' => 'Eliminar pendientes',
         'aprobar' => 'Marcar como facturado, descartar o reabrir']],

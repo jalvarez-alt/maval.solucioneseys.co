@@ -8,7 +8,8 @@ if (trim((string)get('b')) !== '' && $estado === 'activos') $estado = 'todos';  
 if ($estado === 'activos') { $where[] = "t.estado IN ('Abierto','En proceso','En espera')"; }
 elseif (in_array($estado, TICKET_ESTADOS, true)) { $where[] = 't.estado = ?'; $params[] = $estado; }
 if (($pr = get('prioridad')) && in_array($pr, TICKET_PRIORIDADES, true)) { $where[] = 't.prioridad = ?'; $params[] = $pr; }
-if (($cat = get('categoria')) && in_array($cat, TICKET_CATEGORIAS, true)) { $where[] = 't.categoria = ?'; $params[] = $cat; }
+$catsFiltro = array_values(array_unique(array_merge(TICKET_CATEGORIAS, array_column(all('SELECT DISTINCT categoria FROM tickets ORDER BY categoria'), 'categoria'))));
+if (($cat = get('categoria')) && in_array($cat, $catsFiltro, true)) { $where[] = 't.categoria = ?'; $params[] = $cat; }
 if (alcance() === 'todos' && ($emp = (int)get('empresa', 0))) { $where[] = 't.empresa_id = ?'; $params[] = $emp; }
 if (alcance() === 'todos' && get('asignado') === 'yo') { $where[] = 't.asignado_id = ?'; $params[] = (int)user()['id']; }
 if (alcance() === 'todos' && get('asignado') === 'sin') { $where[] = 't.asignado_id IS NULL'; }
@@ -56,7 +57,7 @@ $qs = array_filter(['p' => 'tickets', 'estado' => $estado, 'prioridad' => get('p
       <?= options(TICKET_ESTADOS, $estado, false) ?>
     </select>
     <select class="form-select" name="prioridad" data-autosubmit><option value="">Toda prioridad</option><?= options(TICKET_PRIORIDADES, get('prioridad'), false) ?></select>
-    <select class="form-select" name="categoria" data-autosubmit><option value="">Toda categoría</option><?= options(TICKET_CATEGORIAS, get('categoria'), false) ?></select>
+    <select class="form-select" name="categoria" data-autosubmit><option value="">Toda categoría</option><?= options($catsFiltro, get('categoria'), false) ?></select>
     <?php if (alcance() === 'todos'): ?>
     <select class="form-select" name="empresa" data-autosubmit><option value="">Toda empresa</option><?= options(empresas_list(), get('empresa')) ?></select>
     <select class="form-select" name="asignado" data-autosubmit><option value="">Cualquier técnico</option><?= options(['yo' => 'Asignados a mí', 'sin' => 'Sin asignar'], get('asignado')) ?></select>

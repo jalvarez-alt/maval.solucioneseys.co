@@ -265,3 +265,32 @@ function inf_pdf(array $i, array $filas): SimplePdf
     $pie();
     return $pdf;
 }
+
+// =====================================================================
+// Formulario: tabla editable (compartida con las órdenes de servicio)
+// =====================================================================
+/** Tabla editable: $campo es el nombre del arreglo; cada columna es un campo de texto (o lista en $listas[columna]). */
+function inf_tabla_form(string $campo, array $cab, array $filas, array $anchos, array $listas = []): void
+{
+    $celda = function (int $k, string $idx, $v) use ($campo, $listas) {
+        $n = $campo . '[' . $idx . '][' . $k . ']';
+        if (isset($listas[$k])) {
+            $ops = $listas[$k]; if ($v !== '' && $v !== null && !in_array($v, $ops, true)) $ops[] = $v;
+            return '<select class="form-select form-select-sm" name="' . $n . '"><option value="">—</option>' . options($ops, $v, false) . '</select>';
+        }
+        return '<input class="form-control form-control-sm" name="' . $n . '" value="' . e($v) . '" maxlength="250">';
+    };
+    ?>
+  <div class="tbl-wrap"><table class="tbl inf-tabla" data-campo="<?= e($campo) ?>">
+    <thead><tr><?php foreach ($cab as $k => $h): ?><th style="width:<?= (int)$anchos[$k] ?>%"><?= e($h) ?></th><?php endforeach; ?><th style="width:36px"></th></tr></thead>
+    <tbody>
+    <?php foreach ($filas as $n => $f): ?>
+      <tr><?php foreach ($cab as $k => $_): ?><td><?= $celda($k + 1, (string)$n, $f['c' . ($k + 1)] ?? '') ?></td><?php endforeach; ?>
+        <td><button type="button" class="btn btn-sm btn-outline-danger inf-quitar" title="Quitar fila"><i class="bi bi-x-lg"></i></button></td></tr>
+    <?php endforeach; ?>
+    </tbody>
+    <template><tr><?php foreach ($cab as $k => $_): ?><td><?= $celda($k + 1, '__i__', '') ?></td><?php endforeach; ?>
+      <td><button type="button" class="btn btn-sm btn-outline-danger inf-quitar" title="Quitar fila"><i class="bi bi-x-lg"></i></button></td></tr></template>
+  </table></div>
+  <button type="button" class="btn btn-sm btn-outline-primary mt-2 inf-agregar" data-campo="<?= e($campo) ?>"><i class="bi bi-plus-lg me-1"></i>Agregar fila</button>
+<?php }

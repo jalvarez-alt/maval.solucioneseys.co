@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($a) { @unlink(UPLOAD_DIR . '/' . $a['archivo']); q('DELETE FROM adjuntos WHERE id = ?', [$a['id']]); }
         }
         save_uploads('fotos', 'informe', $id);
+        if ($ordId = (int)post('orden_id', 0)) { require_once APP_DIR . '/ordenes.php'; q('UPDATE ordenes SET informe_id = ? WHERE id = ? AND informe_id IS NULL', [$id, $ordId]); }
         flash($i ? 'Informe actualizado.' : 'Informe ' . inf_codigo(['consecutivo' => val('SELECT consecutivo FROM informes WHERE id = ?', [$id])]) . ' creado.');
         redirect(url('informe', ['id' => $id]));
     }
@@ -71,45 +72,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 } elseif ($i) {
     $filas = inf_filas($id); $datos = inf_datos($i);
 } else {
-    // Informe nuevo: precarga desde una cotización, si se pidió, y pruebas sugeridas del tipo
-    $cotId = (int)get('cotizacion', 0);
+    // Informe nuevo: precarga desde una cotización o una orden de servicio, si se pidió, y pruebas sugeridas del tipo
+    $ordPre = null;
+    if ((int)get('orden', 0)) { require_once APP_DIR . '/ordenes.php'; $x = ord_obtener((int)get('orden')); if ($x && !$x['informe_id']) $ordPre = $x; }
+    $cotId = $ordPre ? (int)$ordPre['cotizacion_id'] : (int)get('cotizacion', 0);
     $cot = $cotId ? cot_obtener($cotId) : null;
     $i = ['tipo' => $tipo, 'estado' => 'Borrador', 'cliente_nombre' => $cot['cliente_nombre'] ?? '', 'cliente_nit' => $cot['cliente_nit'] ?? '', 'contacto' => $cot['atencion'] ?? '', 'cliente_email' => $cot['cliente_email'] ?? '',
         'sede' => $cot['cliente_direccion'] ?? '', 'tecnico_id' => (int)$u['id'], 'cotizacion_id' => $cot['id'] ?? null, 'referencia' => $cot ? 'Cotización ' . $cot['consecutivo'] : '',
         'fecha_inicio' => today(), 'fecha_fin' => '', 'resumen' => '', 'actividades' => '', 'recomendaciones' => '', 'firma_nombre' => '', 'firma_cargo' => ''];
     $filas = ['equipos' => [], 'materiales' => [], 'pruebas' => array_map(fn($p) => ['c1' => $p, 'c2' => '', 'c3' => ''], $t['pruebas'])];
     $datos = [];
+    if ($ordPre) {   // datos de la orden: cliente, técnico, fechas, trabajo realizado y materiales
+        $i = array_merge($i, ['cliente_nombre' => $ordPre['cliente_nombre'], 'cliente_nit' => $ordPre['cliente_nit'] ?? '', 'contacto' => $ordPre['contacto'] ?? '', 'cliente_email' => $ordPre['cliente_email'] ?? '', 'sede' => $ordPre['sede'] ?? '',
+            'tecnico_id' => (int)($ordPre['tecnico_id'] ?: $u['id']), 'referencia' => ord_codigo($ordPre), 'fecha_inicio' => substr((string)($ordPre['fecha_inicio'] ?: $ordPre['fecha_programada'] ?: today()), 0, 10),
+            'fecha_fin' => substr((string)$ordPre['fecha_fin'], 0, 10), 'resumen' => (string)$ordPre['trabajo_realizado'], 'recomendaciones' => (string)$ordPre['observaciones'], 'firma_nombre' => $ordPre['firma_nombre'] ?? '', 'firma_cargo' => $ordPre['firma_cargo'] ?? '']);
+        $filas['materiales'] = array_map(fn($f) => ['c1' => $f['c2'], 'c2' => $f['c3'], 'c3' => $f['c4'], 'c4' => $f['c1']], ord_filas((int)$ordPre['id'])['materiales']);
+    }
 }
 foreach (['equipos', 'materiales', 'pruebas'] as $s) if (!$filas[$s]) $filas[$s] = [[]];   // al menos una fila vacía
 
-/** Tabla editable: $campo es el nombre del arreglo; cada columna es un campo de texto (o lista en $listas[columna]). */
-function inf_tabla_form(string $campo, array $cab, array $filas, array $anchos, array $listas = []): void
-{
-    $celda = function (int $k, string $idx, $v) use ($campo, $listas) {
-        $n = $campo . '[' . $idx . '][' . $k . ']';
-        if (isset($listas[$k])) {
-            $ops = $listas[$k]; if ($v !== '' && $v !== null && !in_array($v, $ops, true)) $ops[] = $v;
-            return '<select class="form-select form-select-sm" name="' . $n . '"><option value="">—</option>' . options($ops, $v, false) . '</select>';
-        }
-        return '<input class="form-control form-control-sm" name="' . $n . '" value="' . e($v) . '" maxlength="250">';
-    };
-    ?>
-  <div class="tbl-wrap"><table class="tbl inf-tabla" data-campo="<?= e($campo) ?>">
-    <thead><tr><?php foreach ($cab as $k => $h): ?><th style="width:<?= (int)$anchos[$k] ?>%"><?= e($h) ?></th><?php endforeach; ?><th style="width:36px"></th></tr></thead>
-    <tbody>
-    <?php foreach ($filas as $n => $f): ?>
-      <tr><?php foreach ($cab as $k => $_): ?><td><?= $celda($k + 1, (string)$n, $f['c' . ($k + 1)] ?? '') ?></td><?php endforeach; ?>
-        <td><button type="button" class="btn btn-sm btn-outline-danger inf-quitar" title="Quitar fila"><i class="bi bi-x-lg"></i></button></td></tr>
-    <?php endforeach; ?>
-    </tbody>
-    <template><tr><?php foreach ($cab as $k => $_): ?><td><?= $celda($k + 1, '__i__', '') ?></td><?php endforeach; ?>
-      <td><button type="button" class="btn btn-sm btn-outline-danger inf-quitar" title="Quitar fila"><i class="bi bi-x-lg"></i></button></td></tr></template>
-  </table></div>
-  <button type="button" class="btn btn-sm btn-outline-primary mt-2 inf-agregar" data-campo="<?= e($campo) ?>"><i class="bi bi-plus-lg me-1"></i>Agregar fila</button>
-<?php }
 ?>
 <form method="post" enctype="multipart/form-data" id="inf">
   <?= csrf_field() ?>
+  <?php if (!$id && ($ordPre['id'] ?? post('orden_id'))): ?><input type="hidden" name="orden_id" value="<?= (int)($ordPre['id'] ?? post('orden_id')) ?>"><?php endif; ?>
+  <?php if (!$id && !empty($ordPre)): ?><div class="alert alert-info py-2 small"><i class="bi bi-tools me-1"></i>Precargado desde la orden de servicio <?= e(ord_codigo($ordPre)) ?>. Complete el informe y agregue las fotos que quiera mostrar.</div><?php endif; ?>
   <?php foreach ($errors as $er): ?><div class="alert alert-danger py-2"><?= e($er) ?></div><?php endforeach; ?>
   <div class="panel">
     <div class="panel-h"><h3><i class="bi bi-<?= e($t['icono']) ?> me-2"></i><?= e($t['nombre']) ?></h3></div>
